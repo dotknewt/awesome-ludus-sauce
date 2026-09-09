@@ -1,0 +1,175 @@
+- name: Check malcolm.service
+  ansible.builtin.systemd_service:
+    name: malcolm.service
+  register: malcolm_service_status
+  ignore_errors: true
+
+- name: DEBUG MALCOLM SERVICE CHECK
+  ansible.builtin.debug:
+    msg: "{{ malcolm_service_status }}"
+    # malcolm_service_status.status.UnitFileState != 'enabled'
+    # malcolm_service_status.status.ActiveState == 'inactive'
+
+- name: Run complete Malcolm installation # when service doesn't exist or isn't enabled
+  when: |
+    malcolm_service_status.status.LoadState != 'loaded'
+    or malcolm_service_status.status.UnitFileState != 'enabled'
+  block:
+    - name: Run docker fix
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/docker.list
+        state: absent
+
+    - name: Update packages
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Dependencies
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - wget
+          - apache2-utils
+          - cron
+          - dialog
+          - git
+          - jq
+          - make
+          - openssl
+          - tmux
+          - xz-utils
+          - lsb-release
+          - python3
+          - python3-pip
+          - python3-setuptools
+          - python3-yaml
+          - python3-requests
+        state: present
+
+    - name: Add an Apt signing key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/debian/gpg
+        keyring: /etc/apt/keyrings/docker.gpg
+        state: present
+
+    - name: Add Docker Repo
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ ansible_architecture | regex_replace('x86_64', 'amd64') | regex_replace('aarch64', 'arm64') }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install Docker Packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Create Docker Group
+      ansible.builtin.group:
+        name: docker
+        state: present
+
+    - name: Add the user 'debian' to primary group of 'docker'
+      ansible.builtin.user:
+        name: debian
+        comment: Debian User
+        uid: 1000
+        groups: docker
+        append: true
+
+    - name: Reset connection to apply new group memberships
+      meta: reset_connection
+
+    - name: Download Malcolm Install Script
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/Antonlovesdnb/ConstructingDefense/refs/heads/main/malcolm_debian12_installer.sh"
+        dest: /home/debian/malcolm_debian12_installer.sh
+        mode: "0755"
+        validate_certs: false
+
+    - name: Check if script exists and is executable
+      ansible.builtin.stat:
+        path: /home/debian/malcolm_debian12_installer.sh
+      register: script_stat
+
+    - name: Show script status
+      debug:
+        var: script_stat
+
+    - name: Test script syntax
+      ansible.builtin.shell:
+        cmd: bash -n /home/debian/malcolm_debian12_installer.sh
+      become: true
+      register: syntax_check
+      ignore_errors: true
+
+    - name: Show syntax check result
+      debug:
+        var: syntax_check
+
+    - name: Run Malcolm Install Script, this is pulling containers and will take a while
+      ansible.builtin.shell:
+        cmd: bash -x /home/debian/malcolm_debian12_installer.sh 2>&1 | tee /tmp/malcolm_install.log
+        chdir: /home/debian
+      become: true
+      async: 3600 # 1 hour timeout
+      poll: 15 # check every 15 seconds
+      register: script_result
+
+    - name: Show final script output
+      debug:
+        var: script_result.stdout_lines
+
+    - name: Check if Malcolm directory exists in /root
+      ansible.builtin.stat:
+        path: /root/Malcolm
+      register: malcolm_root_dir
+
+    - name: Move Malcolm directory if it exists
+      ansible.builtin.command:
+        cmd: mv /root/Malcolm /home/debian/Malcolm
+        removes: /root/Malcolm
+      become: true
+      when: malcolm_root_dir.stat.exists
+
+    - name: Fix ownership of Malcolm directory
+      ansible.builtin.file:
+        path: /home/debian/Malcolm
+        owner: debian
+        group: debian
+        recurse: yes
+      become: true
+      when: malcolm_root_dir.stat.exists
+
+    - name: Run Malcolm Install Script again as non-root to set up auth, this will be quicker and we're almost done
+      ansible.builtin.shell:
+        cmd: bash -x /home/debian/malcolm_debian12_installer.sh
+        chdir: /home/debian
+      become: true
+      become_user: debian
+
+    - name: Create malcolm.service
+      template: src=malcolm.service.j2 dest=/etc/systemd/system/malcolm.service mode=644
+
+    - name: Enable malcolm.service
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        name: malcolm.service
+        enabled: true
+        state: started
+
+- name: Reload malcolm.service
+  when:
+    - malcolm_service_status.status.LoadState == 'loaded'
+    - malcolm_service_status.status.UnitFileState == 'enabled'
+  ansible.builtin.systemd_service:
+    name: malcolm.service
+    enabled: true
+    state: reloaded

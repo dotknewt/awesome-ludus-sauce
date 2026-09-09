@@ -1,0 +1,40 @@
+---
+- name: Configure Sysmon EventLog MaxSize
+  when: # when reg value exists but is wrong
+    - sysmonevtlog_reg_parameters.value is defined
+    - (sysmonevtlog_reg_parameters.value | default(0)) | int != (sysmon_eventlog_maxsize_gigabyte | int * 1024 * 1024 * 1024)
+  ansible.windows.win_command: >
+    wevtutil sl Microsoft-Windows-Sysmon/Operational
+    /ms:{{ sysmon_eventlog_maxsize_gigabyte | int * 1024 * 1024 * 1024 }} /rt:false /ab:false
+  register: sysmon_service_update
+
+- name: Configure Sysmon
+  block:
+    - name: Create config file
+      when: not sysmon_config.stat.exists
+      ansible.builtin.copy:
+        src: "{{ sysmon_config_source }}"
+        dest: "{{ sysmon_config_dest }}"
+        backup: true
+      register: sysmon_config_created
+
+    - name: Update config file
+      when:
+        - sysmon_config.stat.checksum is defined
+        - sysmon_source_config.stat.checksum is defined
+        - (sysmon_config.stat.checksum != sysmon_source_config.stat.checksum)
+      ansible.builtin.copy:
+        src: "{{ sysmon_config_source }}"
+        dest: "{{ sysmon_config_dest }}"
+        backup: true
+      register: sysmon_config_updated
+
+    - name: Reload Sysmon
+      when: |
+        (sysmon_install.changed is defined and sysmon_install.changed)
+        or (sysmon_service_update.rc is defined and sysmon_service_update.rc == 0)
+        or (sysmon_config_created.rc is defined and sysmon_config_created.rc == 0)
+        or (sysmon_config_updated.rc is defined and sysmon_config_updated.rc == 0)
+      ansible.windows.win_command:
+        cmd: "{{ sysmon_executable_path }} -c {{ sysmon_config_dest }}"
+      register: sysmon_config_reload

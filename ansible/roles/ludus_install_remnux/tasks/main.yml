@@ -1,0 +1,19 @@
+---
+- name: Assert that role is executed on a supported Operating System
+  ansible.builtin.assert:
+    that: >
+      ansible_distribution is search("Ubuntu") and
+      ansible_distribution_major_version is search("24")
+    msg: "Ubuntu 24.x is the only supported Operating System for this role."
+
+- name: Pre-configure REMnux host.
+  ansible.builtin.include_tasks:
+    file: configure.yml
+
+- name: Run REMnux installation.
+  ansible.builtin.include_tasks:
+    file: install.yml
+
+- name: Success
+  ansible.builtin.debug:
+    msg: "REMnux install finished!"

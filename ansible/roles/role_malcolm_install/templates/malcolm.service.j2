@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Malcolm start script at startup
+After=network.target
+
+[Service]
+ExecStart=/home/debian/Malcolm/scripts/start
+ExecStop=/home/debian/Malcolm/scripts/stop
+ExecReload=/home/debian/Malcolm/scripts/restart
+Restart=on-failure
+User=debian
+
+[Install]
+WantedBy=multi-user.target

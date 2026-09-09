@@ -1,0 +1,21 @@
+---
+- name: Gather facts if needed
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: Check for Windows
+  ansible.builtin.fail:
+    msg: This role only supports Windows
+  when: ansible_os_family != "Windows"
+
+- name: Rearm windows evalution licence
+  ansible.windows.win_command: cscript.exe C:\WINDOWS\system32\slmgr.vbs /rearm
+  register: rearm_result
+
+- name: Print return information from the previous task
+  ansible.builtin.debug:
+    var: rearm_result
+    verbosity: 2
+
+- name: Reboot to apply changes
+  ansible.windows.win_reboot:

@@ -1,0 +1,41 @@
+---
+argument_specs:
+  main:
+    short_description: |
+      This Ansible role installs, upgrades, and configures Sysmon on
+      Windows Server (2016, 2019, and 2022), Windows 10 and Windows 11.
+    options:
+      sysmon_config_dest:
+        type: str
+        required: false
+        default: 'C:\Windows\sysmonconfig.xml'
+        description: Location of the Sysmon configuration file.
+      sysmon_eventlog_maxsize_gigabyte:
+        type: int
+        required: false
+        default: 1
+        description: |
+          Maximum capacity of the Sysmon operational log in gigabytes (GB).
+          This parameter defines the log’s storage limit before it automatically overwrites the oldest events.
+          Sysmon logs are stored in the Windows Event Log at Applications and Services Logs/Microsoft/Windows/Sysmon/Operational.
+      sysmon_archive_sha256sum:
+        type: str
+        required: false
+        default: "0EDB284C2157562C15B2EB6F7FB0B3D1752C86DBCE782FD4E5DFEA89B10E4BA6"
+        description: SHA256 checksum for the Sysmon.zip archive.
+      sysmon_installer_url:
+        type: str
+        required: false
+        default: "https://download.sysinternals.com/files/Sysmon.zip"
+        description: URL to the Sysmon.zip installer archive.
+      sysmon_installer_version:
+        type: str
+        required: false
+        default: "15.15"
+        description: Version of Sysmon to install.
+      sysmon_config_source:
+        type: str
+        required: false
+        default: "file/sysmonconfig.xml"
+        description: |
+          XML file for Sysmon configuration. Used in configure.yml.

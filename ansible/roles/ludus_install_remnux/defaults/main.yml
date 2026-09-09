@@ -1,0 +1,5 @@
+---
+remnux_destination_path: /usr/local/bin/remnux
+default_remnux_sha256: 15581da24c906126aba2c1e21001311d7a93d9d017c95597c662372248964661
+remnux_download_url: https://REMnux.org/remnux
+default_remnux_user: remnux

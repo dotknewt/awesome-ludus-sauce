@@ -1,0 +1,64 @@
+---
+- name: Assert that host is a supported Operating System
+  ansible.builtin.assert:
+    that: >
+      ansible_distribution is search("Microsoft Windows Server 2016") or
+      ansible_distribution is search("Microsoft Windows Server 2019") or
+      ansible_distribution is search("Microsoft Windows Server 2022") or
+      ansible_distribution is search("Microsoft Windows 10") or
+      ansible_distribution is search("Microsoft Windows 11")
+    msg: "{{ ansible_distribution }} is not a supported Operating System for this role."
+    quiet: true
+
+- name: Check existing Sysmon files
+  block:
+    - name: Sysmon executable
+      ansible.windows.win_stat:
+        path: "{{ sysmon_executable_path }}"
+      register: sysmon_exe
+
+    - name: Sysmon executable version
+      when: sysmon_exe.stat.exists
+      community.windows.win_file_version:
+        path: "{{ sysmon_executable_path }}"
+      register: sysmon_exe_version
+
+    - name: Sysmon config
+      ansible.windows.win_stat:
+        path: "{{ sysmon_config_dest }}"
+        get_checksum: true
+        checksum_algorithm: "sha256"
+      register: sysmon_config
+
+    - name: Calculate source config hash
+      when: sysmon_config.stat.exists
+      delegate_to: 127.0.0.1
+      ansible.builtin.stat:
+        get_checksum: true
+        checksum_algorithm: "sha256"
+        path: "{{ sysmon_config_source }}"
+      register: sysmon_source_config
+
+    - name: Sysmon service
+      ansible.windows.win_service:
+        name: Sysmon64
+      changed_when: false
+      register: sysmon_service
+
+    - name: Sysmon64
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SYSTEM\CurrentControlSet\Services\Sysmon64
+        name: ImagePath
+      register: sysmon64_reg_parameters
+
+    - name: SysmonDrv
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters
+        name: ConfigFile
+      register: sysmondrv_reg_parameters
+
+    - name: Sysmon eventlog Maxsize
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels\Microsoft-Windows-Sysmon/Operational
+        name: MaxSize
+      register: sysmonevtlog_reg_parameters

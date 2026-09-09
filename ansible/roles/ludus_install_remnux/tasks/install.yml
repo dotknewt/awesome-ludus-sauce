@@ -1,0 +1,32 @@
+---
+- name: Running REMnux installation task
+  block:
+    - name: Get hash from REMnux.org
+      ansible.builtin.script:
+        cmd: files/get-remnux-hash.sh
+      args:
+        executable: /usr/bin/bash
+      register: curl_response
+
+    - set_fact:
+        remnux_expected_sha256: "{{ curl_response.stdout_lines | default('default_remnux_sha256') }}"
+
+    - name: Get REMnux
+      ansible.builtin.get_url:
+        url: "{{ remnux_download_url }}"
+        dest: "{{ remnux_destination_path }}"
+        checksum: "sha256:{{ remnux_expected_sha256 }}"
+        mode: "774"
+      register: remnux_download
+      failed_when: remnux_download.failed
+
+    - name: Install REMnux - This will take a long time
+      become: true
+      ansible.builtin.shell: "{{ remnux_destination_path }} install --mode=cloud --user {{ ludus_remnux_user | default('default_remnux_user') }}"
+      register: remnux_install
+      when: not remnux_download.failed
+
+- name: Reboot REMnux after install.
+  ansible.builtin.include_tasks:
+    file: reboot.yml
+  when: not remnux_install.failed

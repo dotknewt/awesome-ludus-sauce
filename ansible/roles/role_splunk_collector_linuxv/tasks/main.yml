@@ -1,0 +1,50 @@
+- name: Update packages
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Curl
+  ansible.builtin.apt:
+    name: curl
+    state: present
+
+- name: Make Splunk Directory
+  ansible.builtin.file:
+    path: /opt/splunkforwarder
+    state: directory
+    mode: "0755"
+
+- name: Download Splunk Forwarder
+  ansible.builtin.get_url:
+    url: "https://download.splunk.com/products/universalforwarder/releases/9.3.2/linux/splunkforwarder-9.3.2-d8bb32809498-linux-2.6-amd64.deb"
+    dest: /opt/splunkforwarder/splunk.deb
+
+- name: Add Splunk User
+  ansible.builtin.user:
+    name: splunkfwd
+    state: present
+    create_home: yes
+
+- name: Install Splunk Forwarder
+  ansible.builtin.apt:
+    deb: /opt/splunkforwarder/splunk.deb
+
+- name: Update Permissions
+  ansible.builtin.file:
+    path: /opt/splunkforwarder
+    owner: splunkfwd
+    group: splunkfwd
+    recurse: yes
+
+- name: Add forwarder server
+  ansible.builtin.command:
+    cmd: /opt/splunkforwarder/bin/splunk add forward-server dc:9997 --accept-license --answer-yes --no-prompt
+    creates: /opt/splunkforwarder/etc/system/local/outputs.conf
+
+- name: Add Laurel Telemetry to Splunk
+  ansible.builtin.command:
+    cmd: /opt/splunkforwarder/bin/splunk add monitor /var/log/laurel/audit.log -index linux
+    creates: /opt/splunkforwarder/etc/apps/search/local/inputs.conf
+
+- name: Start Splunk
+  ansible.builtin.command:
+    cmd: /opt/splunkforwarder/bin/splunk start

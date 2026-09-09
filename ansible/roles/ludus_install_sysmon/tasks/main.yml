@@ -1,0 +1,31 @@
+---
+- name: LUDUS_INSTALL_SYSMON
+  block:
+    - name: SYSMON CHECK TASK
+      ansible.builtin.include_tasks:
+        file: check.yml
+
+    - name: SYSMON UNINSTALL TASK
+      when: # if wrong sysmon_exe_version
+        - sysmon_exe.stat.exists
+        - sysmon_exe_version.win_file_version.product_version is defined
+        - sysmon_exe_version.win_file_version.product_version | default('1.0') != sysmon_installer_version
+      ansible.builtin.include_tasks:
+        file: uninstall.yml
+
+    - name: SYSMON INSTALL TASK
+      when: | # if not sysmon_service.exists OR uninstall ran successfully
+        not sysmon_service.exists
+        or (sysmon_uninstall.changed is defined and sysmon_uninstall.changed)
+      ansible.builtin.include_tasks:
+        file: install.yml
+
+    - name: SYSMON CONFIGURE TASK
+      when: |
+        (sysmon_install.changed is defined and sysmon_install.changed)
+        or (sysmon_config.stat.checksum != sysmon_source_config.stat.checksum)
+        or (sysmondrv_reg_parameters.value is defined and sysmondrv_reg_parameters.value != sysmon_drv_reg)
+        or (sysmon64_reg_parameters.value is defined and sysmon64_reg_parameters.value != sysmon_executable_path)
+        or (sysmonevtlog_reg_parameters.value is defined and (sysmonevtlog_reg_parameters.value | default(0)) | int != (sysmon_eventlog_maxsize_gigabyte | int * 1024 * 1024 * 1024))
+      ansible.builtin.include_tasks:
+        file: configure.yml

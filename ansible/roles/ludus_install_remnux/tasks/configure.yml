@@ -1,0 +1,34 @@
+---
+- name: Running REMnux configuration task
+  block:
+    - name: Upgrade packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: "yes"
+
+    - name: Installing package pre-requisites
+      ansible.builtin.apt:
+        name:
+          - gnupg
+          - curl
+          - qemu-guest-agent
+          - spice-vdagent
+        state: present
+
+    - name: Add REMnux user
+      ansible.builtin.user:
+        name: "{{ default_remnux_user }}"
+        password: "$6$SLDHmGkLe21teZLG$bXmrrPDJMKFz6tUiG3FtjxPrNuvxyT2qh.AihhdLwWpvQjiwqGkvuNphLXpgHBwFtnrZk4BEQweCgXqm.O.3u/"
+        shell: /bin/bash
+      register: remnux_user_status
+      when: not ludus_remnux_user
+
+- name: Run reboot check
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Reboot REMnux after upgrade.
+  ansible.builtin.include_tasks:
+    file: reboot.yml
+  when: reboot_required.stat.exists

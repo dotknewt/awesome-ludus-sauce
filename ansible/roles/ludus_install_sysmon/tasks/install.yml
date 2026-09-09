@@ -1,0 +1,45 @@
+---
+- name: SYSMON INSTALL TASK
+  block:
+    - name: Create temp directory
+      ansible.windows.win_tempfile:
+        state: directory
+      register: sysmon_dl_temp
+
+    - name: Download Sysmon.zip to temp directory
+      ansible.windows.win_get_url:
+        url: "{{ sysmon_installer_url }}"
+        validate_certs: true
+        dest: "{{ sysmon_dl_temp.path }}"
+        checksum: "{{ sysmon_archive_sha256sum }}"
+        checksum_algorithm: "sha256"
+      retries: 10
+      delay: 10
+      register: sysmon_download
+
+    - name: Unzip Sysmon.zip to temp directory
+      when: sysmon_download.checksum_dest == sysmon_download.checksum_src
+      community.windows.win_unzip:
+        src: '{{ sysmon_dl_temp.path }}\Sysmon.zip'
+        dest: "{{ sysmon_dl_temp.path }}"
+      register: sysmon_unzip
+
+    - name: Install Sysmon from temp directory
+      when: not sysmon_unzip.failed
+      block:
+        - name: Copy files to SystemRoot
+          ansible.windows.win_copy:
+            remote_src: true
+            src: '{{ sysmon_dl_temp.path }}\Sysmon64.exe'
+            dest: "{{ sysmon_executable_path }}"
+
+        - name: Running {{ sysmon_executable_path }} {{ sysmon_install_default_parameters | join(" ") }}
+          ansible.windows.win_command:
+            #cmd: '{{ sysmon_dl_temp.path }}\Sysmon64.exe {{ sysmon_install_default_parameters | join(" ") }}'
+            cmd: '{{ sysmon_executable_path }} {{ sysmon_install_default_parameters | join(" ") }}'
+          register: sysmon_install
+
+    - name: Remove temp directory
+      ansible.windows.win_file:
+        path: "{{ sysmon_dl_temp.path }}"
+        state: absent
