@@ -84,7 +84,7 @@ locals {
   template_description = "Windows Server 2019 64-bit template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "win2019-server-x64-us-no-security-updates" {
+source "proxmox-iso" "win2019-server-x64-no-security-updates" {
   additional_iso_files {
     device           = "sata3"
     iso_storage_pool = "${var.iso_storage_pool}"
@@ -143,7 +143,7 @@ source "proxmox-iso" "win2019-server-x64-us-no-security-updates" {
 }
 
 build {
-  sources = ["source.proxmox-iso.win2019-server-x64-us-no-security-updates"]
+  sources = ["source.proxmox-iso.win2019-server-x64-no-security-updates"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]

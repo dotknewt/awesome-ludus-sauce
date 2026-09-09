@@ -84,7 +84,7 @@ locals {
   template_description = "Windows Server 2022 64-bit template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "win2022-server-x64-us" {
+source "proxmox-iso" "win2022-server-x64-no" {
   additional_iso_files {
     device           = "sata3"
     iso_storage_pool = "${var.iso_storage_pool}"
@@ -143,7 +143,7 @@ source "proxmox-iso" "win2022-server-x64-us" {
 }
 
 build {
-  sources = ["source.proxmox-iso.win2022-server-x64-us"]
+  sources = ["source.proxmox-iso.win2022-server-x64-no"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]
