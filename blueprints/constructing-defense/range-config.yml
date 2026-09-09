@@ -1,0 +1,201 @@
+# yaml-language-server: $schema=https://docs.ludus.cloud/schemas/range-config.json
+
+defaults:
+  snapshot_with_RAM: true
+  stale_hours: 0
+  ad_domain_functional_level: Win2012R2
+  ad_forest_functional_level: Win2012R2
+  ad_domain_admin: domainadmin
+  ad_domain_admin_password: "Temp1234!!"
+  ad_domain_user: domainuser
+  ad_domain_user_password: "Temp1234!!"
+  ad_domain_safe_mode_password: "Temp1234!!"
+  timezone: Europe/Oslo
+  enable_dynamic_wallpaper: true
+
+ludus:
+  - vm_name: "DC"
+    hostname: "DC"
+    template: win2022-server-x64-template
+    vlan: 10
+    ip_last_octet: 11
+    ram_gb: 16
+    cpus: 4
+    windows:
+      sysprep: true
+      gpos:
+        - disable_defender
+        - anon_share_access
+      autologon_user: domainadmin
+      autologon_password: "Temp1234!!"
+    domain:
+      fqdn: condef.internal
+      role: primary-dc
+    roles:
+      - role_gpo_deploy
+      - role_splunk_install
+      - role_splunk_hec_validate
+      - ludus_install_sysmon
+    role_vars:
+      splunk_admin_password: "Temp1234!!"
+      splunk_hec_token_name: "K8s"
+      splunk_hec_token_description: "K8s Logs from LinuxV"
+      splunk_index_name: "kube"
+      splunk_hec_disable_ssl: true
+      ludus_splunk_expected_token: "b448817b-e664-4fce-93fa-79d0c90ba57"
+    testing:
+      snapshot: true
+      block_internet: true
+
+  - vm_name: "CERTER"
+    hostname: "CERTER"
+    template: win2022-server-x64-template
+    vlan: 10
+    ip_last_octet: 12
+    ram_gb: 8
+    cpus: 4
+    windows:
+      sysprep: true
+      autologon_user: domainadmin
+      autologon_password: "Temp1234!!"
+    domain:
+      fqdn: condef.internal
+      role: member
+    roles:
+      - badsectorlabs.ludus_adcs
+      - role_splunk_collector_certer
+      - ludus_install_sysmon
+    role_vars:
+      ludus_adcs_domain: condef.internal
+      ludus_adcs_ca_host: CERTER
+      ludus_adcs_domain_username: "condef.internal\\domainadmin"
+      ludus_adcs_domain_password: "Temp1234!!"
+      ludus_adcs_ca_common_name: certer-CA
+      ludus_adcs_esc1: true
+      ludus_adcs_esc2: false
+      ludus_adcs_esc3: false
+      ludus_adcs_esc3_cra: false
+      ludus_adcs_esc4: false
+      ludus_adcs_esc6: false
+      ludus_adcs_esc8: false
+      ludus_adcs_esc13: false
+      ludus_adcs_esc5: false
+      ludus_adcs_esc7: false
+      ludus_adcs_esc9: false
+      ludus_adcs_esc11: false
+      ludus_adcs_esc15: false
+      ludus_adcs_esc16: false
+
+  - vm_name: "WIN11V"
+    hostname: "WIN11V"
+    template: win11-22h2-x64-enterprise-template
+    vlan: 10
+    ip_last_octet: 13
+    ram_gb: 16
+    cpus: 4
+    windows:
+      sysprep: true
+      autologon_user: domainadmin
+      autologon_password: "Temp1234!!"
+    domain:
+      fqdn: condef.internal
+      role: member
+    roles:
+      - role_splunk_collector_win11v
+      - ludus_install_sysmon
+
+  - vm_name: "WIN11A"
+    hostname: "WIN11A"
+    template: win11-22h2-x64-enterprise-template
+    vlan: 10
+    ip_last_octet: 14
+    ram_gb: 16
+    cpus: 4
+    windows:
+      sysprep: true
+      chocolatey_ignore_checksums: false
+      chocolatey_packages:
+        - notepadplusplus
+        - 7zip
+      autologon_user: domainadmin
+      autologon_password: "Temp1234!!"
+    domain:
+      fqdn: condef.internal
+      role: member
+    roles:
+      - role_splunk_collector_win11a
+      - ludus_install_sysmon
+
+  - vm_name: "linuxa"
+    hostname: "linuxa"
+    template: debian-12-x64-server-template
+    vlan: 10
+    ip_last_octet: 15
+    ram_gb: 8
+    cpus: 4
+    linux:
+      packages:
+        - vim # optional
+        - curl
+        - ca-certificates
+        - bash-completion # optional
+        - git
+        - make
+        - pipx
+        - ncat
+
+  - vm_name: "linuxv"
+    hostname: "linuxv"
+    template: debian-12-x64-server-template
+    vlan: 10
+    ip_last_octet: 16
+    ram_gb: 16
+    cpus: 6
+    linux:
+      packages:
+        - vim # optional
+        - curl
+        - ca-certificates
+        - bash-completion # optional
+        - ncat
+        - apache2
+        - php
+        - libapache2-mod-php
+    roles:
+      - role_linux_logging
+      - role_minikube
+      - role_splunk_collector_linuxv
+      - name: role_k8s_telemetry_collection
+        depends_on:
+          - vm_name: "DC"
+            role: role_splunk_hec_validate
+    role_vars:
+      k8s_cluster_name: "minkube"
+      k8s_splunk_index: "kube"
+      ludus_k8s_splunk_hec_token: "b448817b-e664-4fce-93fa-79d0c90ba57"
+      ludus_k8s_splunk_server_ip: "10.{{ range_second_octet }}.10.11" # Calculate Splunk server IP based on VLAN and octet
+
+  - vm_name: "pcap"
+    hostname: "pcap"
+    template: debian-12-x64-server-template
+    vlan: 10
+    ip_last_octet: 17
+    ram_gb: 64
+    cpus: 8
+    linux: true
+    roles:
+      - role_malcolm_install
+
+network:
+  inter_vlan_default: ACCEPT
+  external_default: ACCEPT
+  always_blocked_networks:
+    - 192.168.0.0/16
+    - 172.16.0.0/12
+  rules:
+    - name: Allow all VLANs out to internet using any protocol and port
+      vlan_src: all
+      vlan_dst: public
+      protocol: all
+      ports: all
+      action: ACCEPT

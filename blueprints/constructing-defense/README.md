@@ -1,0 +1,81 @@
+# Constructing Defense
+
+A single-domain detection-engineering lab. A Windows AD forest (`condef.internal`) with an
+ADCS server misconfigured for ESC1, Sysmon on every Windows host, a Splunk SIEM collecting
+Windows/Linux/Kubernetes telemetry, a Malcolm network-monitoring sensor, a minikube cluster
+emitting K8s telemetry, and a docker host running VECTR, Ghostwriter and BloodHound CE.
+
+## Topology
+
+```mermaid
+graph TB
+  subgraph vlan10["VLAN 10 — condef.internal"]
+    DC["DC (.11)<br/>primary-dc · Splunk · Sysmon"]
+    CERTER["CERTER (.12)<br/>ADCS ESC1 · Sysmon"]
+    WIN11V["WIN11V (.13)<br/>member · Sysmon"]
+    WIN11A["WIN11A (.14)<br/>member · Sysmon"]
+    linuxa["linuxa (.15)<br/>utility host"]
+    linuxv["linuxv (.16)<br/>minikube · K8s telemetry"]
+    pcap["pcap (.17)<br/>Malcolm sensor"]
+    docker["docker (.100)<br/>VECTR · Ghostwriter · BloodHound CE"]
+  end
+
+  CERTER -. ESC1 abuse .-> DC
+  WIN11A -. attacker workstation .-> DC
+  linuxv -- HEC logs --> DC
+  linuxv -- forwards --> DC
+```
+
+## VMs
+
+| VM      | Template                              | IP   | Role in lab                                   |
+|---------|---------------------------------------|------|-----------------------------------------------|
+| DC      | win2022-server-x64-template           | .11  | Domain controller, Splunk server, HEC token   |
+| CERTER  | win2022-server-x64-template           | .12  | ADCS CA, vulnerable to ESC1                    |
+| WIN11V  | win11-22h2-x64-enterprise-template    | .13  | Domain member, Splunk UF                       |
+| WIN11A  | win11-22h2-x64-enterprise-template    | .14  | Domain member / attacker workstation          |
+| linuxa  | debian-12-x64-server-template         | .15  | General-purpose Linux host                     |
+| linuxv  | debian-12-x64-server-template         | .16  | minikube cluster + K8s→Splunk telemetry        |
+| pcap    | debian-12-x64-server-template         | .17  | Malcolm network monitoring (64 GB RAM)         |
+| docker  | ubuntu-22.04-x64-server-template      | .100 | VECTR, Ghostwriter, BloodHound CE              |
+
+All templates are stock Ludus built-ins — this source ships no Packer templates.
+
+## Credentials
+
+- Domain admin: `condef.internal\domainadmin` / `Temp1234!!`
+- Splunk (`http://dc:8000`): `condef` / `Temp1234!!`
+- Malcolm (`https://pcap:443`): `condef` / `Temp1234!!`
+- Linux hosts: `debian` / `debian`
+- VECTR: `admin` / `11_ThisIsTheFirstPassword_11`
+- BloodHound CE: `admin` / `bloodhoundpassword123`
+
+## Manual post-deploy steps
+
+The `manual-scripts/` directory holds PowerShell run **on the DC** after the range deploys.
+They are not wired into any role — run them by hand (or copy them onto the DC and execute):
+
+1. `create-shares.ps1` — creates AD users `OlaBruker` / `OlaAdmin`, 15 folders under
+   `C:\Shares\Share1..15`, and SMB shares `Logs1..15`.
+2. `kerberoast-telemetry.ps1` — creates `OU=Kerberoast` and users with SPNs so Kerberoasting
+   generates telemetry.
+
+## Known issues
+
+- **Domain name mismatch (GPO deploy).** `role_gpo_deploy` and both manual scripts target
+  `CONDEF.local`, while this range deploys `condef.internal`. As shipped, `role_gpo_deploy`'s
+  `New-GPLink -Target "dc=condef,dc=local"` will fail on this range. Either fix the role/scripts
+  to use `condef.internal` before deploying, or deploy a `condef.local` forest instead. Copied
+  as-is from the original environment.
+- **Internet needed on the DC during deploy.** `role_gpo_deploy` downloads `CondefGPO.zip` from
+  GitHub at runtime. The DC's `testing.block_internet` is `true` for snapshot testing — the role
+  runs during the normal deploy (not testing mode), but confirm the DC has egress when it runs.
+- **`k8s_cluster_name: "minkube"`** in `role_vars` is a typo carried over from the original
+  (role default is `minikube`); left unchanged to preserve behavior parity.
+
+## Differences from the original environment
+
+- The `commando` VM (`commando-vm-template`) was **dropped** — that template is neither a Ludus
+  built-in nor shipped here. Add it back manually (e.g. via the `badsectorlabs.ludus_commandovm`
+  role and its template) if you need it.
+- The explicit `router:` block was removed; Ludus auto-provisions the range router.
