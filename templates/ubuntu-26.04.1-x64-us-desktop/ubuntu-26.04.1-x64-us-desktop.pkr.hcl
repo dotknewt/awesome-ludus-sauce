@@ -85,7 +85,7 @@ locals {
   template_description = "Ubuntu 26.04.1 Desktop template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "ubuntu2404" {
+source "proxmox-iso" "ubuntu2604" {
   boot_command = [
     "e<down><down><down><end><wait>",
     " autoinstall<wait>",
@@ -134,7 +134,7 @@ source "proxmox-iso" "ubuntu2404" {
 }
 
 build {
-  sources = ["source.proxmox-iso.ubuntu2404"]
+  sources = ["source.proxmox-iso.ubuntu2604"]
 
   provisioner "ansible" {
     playbook_file = "ansible/reset-machine-id.yml"
