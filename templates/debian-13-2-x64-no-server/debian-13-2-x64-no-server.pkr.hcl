@@ -90,7 +90,7 @@ source "proxmox-iso" "debian13" {
     "<down><tab>", # non-graphical install
     "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/debian-13-preseed.cfg ",
     "language=en locale=en_US.UTF-8 ",
-    "country=US keymap=us ",
+    "country=US keymap=no ",
     "hostname=debian13 domain=local ",
     "<enter><wait>",
   ]
@@ -151,4 +151,3 @@ build {
     skip_version_check = true
   }
 }
-

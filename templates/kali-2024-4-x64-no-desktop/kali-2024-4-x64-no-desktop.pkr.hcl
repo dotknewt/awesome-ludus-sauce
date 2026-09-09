@@ -31,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "kali-x64-us-desktop-template"
+  default = "kali-2024-4-x64-no-desktop-template"
 }
 
 variable "ssh_password" {
@@ -89,14 +89,14 @@ source "proxmox-iso" "kali" {
   boot_command = [
     "<esc><wait>",
     "auto <wait>",
-    "console-keymaps-at/keymap=us <wait>",
+    "console-keymaps-at/keymap=no <wait>",
     "console-setup/ask_detect=false <wait>",
     "debconf/frontend=noninteractive <wait>",
     "debian-installer=en_US <wait>",
     "fb=false <wait>",
     "install <wait>",
-    "kbd-chooser/method=us <wait>",
-    "keyboard-configuration/xkb-keymap=us <wait>",
+    "kbd-chooser/method=no <wait>",
+    "keyboard-configuration/xkb-keymap=no <wait>",
     "locale=en_US <wait>",
     "netcfg/get_hostname=kali <wait>",
     "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/kali-preseed.cfg <wait>",

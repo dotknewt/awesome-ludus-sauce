@@ -7,8 +7,8 @@ autoinstall:
   version: 1
   locale: en_US
   keyboard:
-  layout: en
-  variant: us
+    layout: "no"
+    variant: ""
   storage:
     layout:
       name: direct
