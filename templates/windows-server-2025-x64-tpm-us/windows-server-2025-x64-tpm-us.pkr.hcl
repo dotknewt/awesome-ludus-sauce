@@ -125,8 +125,8 @@ source "proxmox-iso" "windows-server-2025-x64-tpm-us" {
   additional_iso_files {
     type              = "sata"
     index             = "4"
-    iso_checksum      = "sha256:bbe6166ad86a490caefad438fef8aa494926cb0a1b37fa1212925cfd81656429"
-    iso_url           = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.271-1/virtio-win.iso"
+    iso_checksum      = "sha256:303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
+    iso_url           = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
     iso_storage_pool  = "${var.iso_storage_pool}"
     #iso_download_pve  = true
     unmount           = true

@@ -116,8 +116,8 @@ source "proxmox-iso" "flare-vm-no" {
   }
   additional_iso_files {
     device           = "sata4"
-    iso_checksum     = "sha256:57B0F6DC8DC92DC2AE8621F8B1BFBD8A873DE9BEDC788C4C4B305EA28ACC77CD"
-    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.266-1/virtio-win-0.1.266.iso"
+    iso_checksum     = "sha256:303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
+    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
     iso_storage_pool = "${var.iso_storage_pool}"
     unmount          = true
   }

@@ -116,8 +116,8 @@ source "proxmox-iso" "win11" {
   }
   additional_iso_files {
     device               = "sata4"
-    iso_checksum         = "sha256:ebd48258668f7f78e026ed276c28a9d19d83e020ffa080ad69910dc86bbcbcc6"
-    iso_url              = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win-0.1.240.iso"
+    iso_checksum         = "sha256:303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
+    iso_url              = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
     iso_storage_pool     = "${var.iso_storage_pool}"
     unmount              = true
   }
