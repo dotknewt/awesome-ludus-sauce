@@ -128,7 +128,7 @@ ludus:
 
   - vm_name: "linuxa"
     hostname: "linuxa"
-    template: debian-13.2-x64-server-no-template
+    template: debian-13.5-x64-server-no-template
     vlan: 10
     ip_last_octet: 15
     ram_gb: 8
@@ -146,7 +146,7 @@ ludus:
 
   - vm_name: "linuxv"
     hostname: "linuxv"
-    template: debian-13.2-x64-server-no-template
+    template: debian-13.5-x64-server-no-template
     vlan: 10
     ip_last_octet: 16
     ram_gb: 16
@@ -177,7 +177,7 @@ ludus:
 
   - vm_name: "pcap"
     hostname: "pcap"
-    template: debian-13.2-x64-server-no-template
+    template: debian-13.5-x64-server-no-template
     vlan: 10
     ip_last_octet: 17
     ram_gb: 64
