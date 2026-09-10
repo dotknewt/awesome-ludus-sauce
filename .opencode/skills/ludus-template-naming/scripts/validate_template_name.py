@@ -11,31 +11,19 @@ import sys
 LINUX_FAMILIES = {"ubuntu", "debian", "kali"}
 ARCHITECTURES = {"x64", "arm64"}
 LINUX_ROLES = {"desktop", "server"}
-ALLOWED_NAME = re.compile(r"^[a-z0-9._-]+$")
-RELEASE = re.compile(r"^[0-9]+(?:\.[0-9]+)*(?:_[a-z0-9]*[a-z][a-z0-9]*)*$")
-QUALIFIER = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
+ALLOWED_NAME = re.compile(r"^[a-z0-9.-]+$")
+NUMERIC_RELEASE = re.compile(r"^[0-9]+(?:\.[0-9]+)*$")
+WINDOWS_RELEASE = re.compile(r"^[0-9]+(?:\.[0-9]+)*(?:-[a-z0-9]*[a-z][a-z0-9]*)*$")
+QUALIFIER = re.compile(r"^[a-z0-9]+$")
 LOCALE = re.compile(r"^[a-z]{2}$")
-
-
-def has_hyphenated_numeric_release(fields: list[str]) -> bool:
-    release_start = 2 if fields[:2] == ["windows", "server"] else 1
-    architecture_index = next(
-        (index for index in range(release_start, len(fields)) if fields[index] in ARCHITECTURES),
-        None,
-    )
-    return (
-        architecture_index is not None
-        and architecture_index - release_start >= 2
-        and all(field.isdigit() for field in fields[release_start:architecture_index])
-    )
 
 
 def validate_name(name: str) -> str | None:
     if not name.isascii() or name != name.lower():
         return "lowercase ASCII"
     if not name or not ALLOWED_NAME.fullmatch(name):
-        return "name must use lowercase ASCII letters, digits, dots, underscores, and hyphens"
-    if any(separator in name for separator in ("--", "__", "..")):
+        return "name must use lowercase ASCII letters, digits, dots, and hyphens"
+    if any(separator in name for separator in ("--", "..")):
         return "repeated separator"
 
     suffix_count = name.count("-template")
@@ -46,11 +34,12 @@ def validate_name(name: str) -> str | None:
         if "-template" in name:
             return "built name must contain exactly one terminal -template suffix"
 
+    if re.fullmatch(r"flare-vm-[a-z]{2}", name):
+        return None
+
     fields = name.split("-")
     if not fields or fields[0] not in LINUX_FAMILIES | {"windows"}:
         return "unknown OS family; expected ubuntu, debian, kali, windows, or windows-server"
-    if has_hyphenated_numeric_release(fields):
-        return "numeric release components must use dots"
 
     if fields[0] in LINUX_FAMILIES:
         if len(fields) < 5:
@@ -58,17 +47,21 @@ def validate_name(name: str) -> str | None:
         release, arch, role = fields[1:4]
         qualifiers = fields[4:-1]
     elif len(fields) > 1 and fields[1] == "server":
-        if len(fields) < 5:
+        arch_index = next((index for index, field in enumerate(fields[2:], 2) if field in ARCHITECTURES), None)
+        if arch_index is None or arch_index + 1 >= len(fields):
             return "expected Windows Server shape: windows-server-<release>-<arch>[-<qualifier>...]-<locale>"
-        release, arch = fields[2:4]
+        release = "-".join(fields[2:arch_index])
+        arch = fields[arch_index]
         role = None
-        qualifiers = fields[4:-1]
+        qualifiers = fields[arch_index + 1 : -1]
     else:
-        if len(fields) < 4:
+        arch_index = next((index for index, field in enumerate(fields[1:], 1) if field in ARCHITECTURES), None)
+        if arch_index is None or arch_index + 1 >= len(fields):
             return "expected Windows client shape: windows-<release>-<arch>[-<qualifier>...]-<locale>"
-        release, arch = fields[1:3]
+        release = "-".join(fields[1:arch_index])
+        arch = fields[arch_index]
         role = None
-        qualifiers = fields[3:-1]
+        qualifiers = fields[arch_index + 1 : -1]
 
     if role is not None and role not in LINUX_ROLES:
         return "Linux role must be desktop or server"
@@ -76,20 +69,13 @@ def validate_name(name: str) -> str | None:
     locale = fields[-1]
     if not LOCALE.fullmatch(locale):
         return "final locale must be two lowercase letters"
-    if not RELEASE.fullmatch(release):
-        if re.fullmatch(r"[0-9]+(?:_[0-9]+)+", release):
-            return "numeric release components must use dots"
-        return "release must start with digits and use dots for numeric parts or underscores for semantic alphanumeric parts"
+    release_pattern = NUMERIC_RELEASE if fields[0] in LINUX_FAMILIES else WINDOWS_RELEASE
+    if not release_pattern.fullmatch(release):
+        return "release must start with digits and use dots for numeric parts or hyphens for semantic alphanumeric parts"
     if arch not in ARCHITECTURES:
         return "architecture must be x64 or arm64"
-    ambiguous_qualifier = ["no", "security", "updates"]
-    if any(
-        qualifiers[index : index + 3] == ambiguous_qualifier
-        for index in range(len(qualifiers) - 2)
-    ):
-        return "write the multiword qualifier as no_security_updates"
     if any(not QUALIFIER.fullmatch(qualifier) for qualifier in qualifiers):
-        return "qualifiers must use lowercase alphanumerics with underscores inside a field"
+        return "qualifiers must use lowercase alphanumerics"
     return None
 
 

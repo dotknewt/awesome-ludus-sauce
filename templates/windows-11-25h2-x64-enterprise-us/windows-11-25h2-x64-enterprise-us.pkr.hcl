@@ -1,6 +1,6 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:ebbc79106715f44f5020f77bd90721b17c5a877cbc15a3535b99155493a1bb3f"
+  default = "sha256:a61adeab895ef5a4db436e0a7011c92a2ff17bb0357f58b13bbc4062e535e7b9"
 }
 
 # https://github.com/proxmox/qemu-server/blob/9b1971c5c991540f27270022e586aec5082b0848/PVE/QemuServer.pm#L412
@@ -11,7 +11,7 @@ variable "os" {
 
 variable "iso_url" {
   type    = string
-  default = "https://software-static.download.prss.microsoft.com/dbazure/988969d5-f34g-4e03-ac9d-1f9786c66751/22621.525.220925-0207.ni_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
+  default = "https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
 }
 
 variable "vm_cpu_cores" {
@@ -31,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "windows-11_22h2-x64-enterprise-no-template"
+  default = "windows-11-25h2-x64-enterprise-us-template"
 }
 
 variable "winrm_password" {
@@ -82,10 +82,10 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Windows 11 22H2 64-bit Enterprise template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
+  template_description = "Windows 11 25H2 64-bit Enterprise template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "win11" {
+source "proxmox-iso" "windows-11-25h2-x64-enterprise-us" {
   # Hit the "Press any key to boot from CD ROM"
   boot_wait = "-1s" # To set boot_wait to 0s, use a negative number, such as "-1s"
   boot_command = [  # 120 seconds of enters to cover all different speeds of disks as windows boots
@@ -115,11 +115,11 @@ source "proxmox-iso" "win11" {
     ]
   }
   additional_iso_files {
-    device               = "sata4"
-    iso_checksum         = "sha256:303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
-    iso_url              = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
-    iso_storage_pool     = "${var.iso_storage_pool}"
-    unmount              = true
+    device           = "sata4"
+    iso_checksum     = "sha256:303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
+    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
+    iso_storage_pool = "${var.iso_storage_pool}"
+    unmount          = true
   }
   # Required for Win11
   bios = "ovmf"
@@ -169,7 +169,7 @@ source "proxmox-iso" "win11" {
 }
 
 build {
-  sources = ["source.proxmox-iso.win11"]
+  sources = ["source.proxmox-iso.windows-11-25h2-x64-enterprise-us"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]

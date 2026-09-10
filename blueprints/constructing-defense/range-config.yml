@@ -88,7 +88,7 @@ ludus:
 
   - vm_name: "WIN11V"
     hostname: "WIN11V"
-    template: windows-11_22h2-x64-enterprise-no-template
+    template: windows-11-22h2-x64-enterprise-no-template
     vlan: 10
     ip_last_octet: 13
     ram_gb: 16
@@ -106,7 +106,7 @@ ludus:
 
   - vm_name: "WIN11A"
     hostname: "WIN11A"
-    template: windows-11_22h2-x64-enterprise-no-template
+    template: windows-11-22h2-x64-enterprise-no-template
     vlan: 10
     ip_last_octet: 14
     ram_gb: 16

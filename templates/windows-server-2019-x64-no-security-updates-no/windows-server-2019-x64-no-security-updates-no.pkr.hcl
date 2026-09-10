@@ -30,7 +30,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "windows-server-2019-x64-no_security_updates-no-template"
+  default = "windows-server-2019-x64-no-security-updates-no-template"
 }
 
 variable "winrm_password" {
@@ -84,7 +84,7 @@ locals {
   template_description = "Windows Server 2019 64-bit template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "windows-server-2019-x64-no_security_updates-no" {
+source "proxmox-iso" "windows-server-2019-x64-no-security-updates-no" {
   additional_iso_files {
     device           = "sata3"
     iso_storage_pool = "${var.iso_storage_pool}"
@@ -143,7 +143,7 @@ source "proxmox-iso" "windows-server-2019-x64-no_security_updates-no" {
 }
 
 build {
-  sources = ["source.proxmox-iso.windows-server-2019-x64-no_security_updates-no"]
+  sources = ["source.proxmox-iso.windows-server-2019-x64-no-security-updates-no"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]
