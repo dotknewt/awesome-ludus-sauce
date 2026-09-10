@@ -1,8 +1,9 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:3e4fa6d8507b554856fc9ca6079cc402df11a8b79344871669f0251535255325"
+  default = "sha256:a61adeab895ef5a4db436e0a7011c92a2ff17bb0357f58b13bbc4062e535e7b9"
 }
 
+# https://github.com/proxmox/qemu-server/blob/9b1971c5c991540f27270022e586aec5082b0848/PVE/QemuServer.pm#L412
 variable "os" {
   type    = string
   default = "win11"
@@ -10,12 +11,12 @@ variable "os" {
 
 variable "iso_url" {
   type    = string
-  default = "https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso"
+  default = "https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
 }
 
 variable "vm_cpu_cores" {
   type    = string
-  default = "4"
+  default = "2"
 }
 
 variable "vm_disk_size" {
@@ -25,12 +26,12 @@ variable "vm_disk_size" {
 
 variable "vm_memory" {
   type    = string
-  default = "8192"
+  default = "4096"
 }
 
 variable "vm_name" {
   type    = string
-  default = "win2022-server-x64-no-template"
+  default = "windows-11_25h2-x64-enterprise-us-template"
 }
 
 variable "winrm_password" {
@@ -81,10 +82,26 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Windows Server 2022 64-bit template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
+  template_description = "Windows 11 25H2 64-bit Enterprise template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "win2022-server-x64-no" {
+source "proxmox-iso" "windows-11_25h2-x64-enterprise-us" {
+  # Hit the "Press any key to boot from CD ROM"
+  boot_wait = "-1s" # To set boot_wait to 0s, use a negative number, such as "-1s"
+  boot_command = [  # 120 seconds of enters to cover all different speeds of disks as windows boots
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>"
+  ]
   additional_iso_files {
     device           = "sata3"
     iso_storage_pool = "${var.iso_storage_pool}"
@@ -99,11 +116,20 @@ source "proxmox-iso" "win2022-server-x64-no" {
   }
   additional_iso_files {
     device           = "sata4"
-    iso_checksum     = "sha256:c88a0dde34605eaee6cf889f3e2a0c2af3caeb91b5df45a125ca4f701acbbbe0"
-    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.229-1/virtio-win-0.1.229.iso"
+    iso_checksum     = "sha256:ebd48258668f7f78e026ed276c28a9d19d83e020ffa080ad69910dc86bbcbcc6"
+    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win-0.1.240.iso"
     iso_storage_pool = "${var.iso_storage_pool}"
     unmount          = true
   }
+  # Required for Win11
+  bios = "ovmf"
+  efi_config {
+    efi_storage_pool  = "${var.proxmox_storage_pool}"
+    pre_enrolled_keys = true
+    efi_type          = "4m"
+  }
+  # End Win11 required option
+
   communicator    = "winrm"
   cores           = "${var.vm_cpu_cores}"
   cpu_type        = "host"
@@ -137,13 +163,13 @@ source "proxmox-iso" "win2022-server-x64-no" {
   winrm_password       = "${var.winrm_password}"
   winrm_use_ssl        = true
   winrm_username       = "${var.winrm_username}"
+  winrm_timeout        = "60m"
   unmount_iso          = true
-  winrm_timeout        = "6h" // Sometimes the boot and/or updates can be really really slow
   task_timeout         = "20m" // On slow disks the imgcopy operation takes > 1m
 }
 
 build {
-  sources = ["source.proxmox-iso.win2022-server-x64-no"]
+  sources = ["source.proxmox-iso.windows-11_25h2-x64-enterprise-us"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]

@@ -1,16 +1,17 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1"
+  default = "sha256:c8dbc96b61d04c8b01faf6ce0794fdf33965c7b350eaa3eb1e6697019902945c"
 }
 
+# https://github.com/proxmox/qemu-server/blob/9b1971c5c991540f27270022e586aec5082b0848/PVE/QemuServer.pm#L412
 variable "os" {
   type    = string
-  default = "win10"
+  default = "win11"
 }
 
 variable "iso_url" {
   type    = string
-  default = "https://software-download.microsoft.com/download/pr/17763.737.190906-2324.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us_1.iso"
+  default = "https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/22631.2428.231001-0608.23H2_NI_RELEASE_SVC_REFRESH_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
 }
 
 variable "vm_cpu_cores" {
@@ -30,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "win2019-server-x64-no-security-updates-template"
+  default = "windows-11_23h2-x64-enterprise-no-template"
 }
 
 variable "winrm_password" {
@@ -81,10 +82,26 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Windows Server 2019 64-bit template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
+  template_description = "Windows 11 23H2 64-bit Enterprise template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
-source "proxmox-iso" "win2019-server-x64-no-security-updates" {
+source "proxmox-iso" "win11" {
+  # Hit the "Press any key to boot from CD ROM"
+  boot_wait = "-1s" # To set boot_wait to 0s, use a negative number, such as "-1s"
+  boot_command = [  # 120 seconds of enters to cover all different speeds of disks as windows boots
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>",
+    "<return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait><return><wait>"
+  ]
   additional_iso_files {
     device           = "sata3"
     iso_storage_pool = "${var.iso_storage_pool}"
@@ -99,11 +116,20 @@ source "proxmox-iso" "win2019-server-x64-no-security-updates" {
   }
   additional_iso_files {
     device           = "sata4"
-    iso_checksum     = "sha256:c88a0dde34605eaee6cf889f3e2a0c2af3caeb91b5df45a125ca4f701acbbbe0"
-    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.229-1/virtio-win-0.1.229.iso"
+    iso_checksum     = "sha256:ebd48258668f7f78e026ed276c28a9d19d83e020ffa080ad69910dc86bbcbcc6"
+    iso_url          = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win-0.1.240.iso"
     iso_storage_pool = "${var.iso_storage_pool}"
     unmount          = true
   }
+  # Required for Win11
+  bios = "ovmf"
+  efi_config {
+    efi_storage_pool  = "${var.proxmox_storage_pool}"
+    pre_enrolled_keys = true
+    efi_type          = "4m"
+  }
+  # End Win11 required option
+
   communicator    = "winrm"
   cores           = "${var.vm_cpu_cores}"
   cpu_type        = "host"
@@ -137,13 +163,13 @@ source "proxmox-iso" "win2019-server-x64-no-security-updates" {
   winrm_password       = "${var.winrm_password}"
   winrm_use_ssl        = true
   winrm_username       = "${var.winrm_username}"
+  winrm_timeout        = "60m"
   unmount_iso          = true
-  winrm_timeout        = "6h" // Sometimes the boot and/or updates can be really really slow
   task_timeout         = "20m" // On slow disks the imgcopy operation takes > 1m
 }
 
 build {
-  sources = ["source.proxmox-iso.win2019-server-x64-no-security-updates"]
+  sources = ["source.proxmox-iso.win11"]
 
   provisioner "windows-shell" {
     scripts = ["scripts/disablewinupdate.bat"]
