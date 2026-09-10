@@ -186,6 +186,11 @@ ludus:
     roles:
       - role_malcolm_install
 
+router:
+  vm_name: "{{ range_id }}-router-debian13-x64"
+  hostname: "{{ range_id }}-router"
+  template: debian-13.5-x64-server-no-template
+
 network:
   inter_vlan_default: ACCEPT
   external_default: ACCEPT
