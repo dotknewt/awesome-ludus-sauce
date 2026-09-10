@@ -1,6 +1,6 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:d7fe3d6a0419667d2f8eff12796996328daa2d4f90cd9f87aa9371b362f987bf"
+  default = "sha256:d6dab0c3a657988501b4bd76f1297c053df710e06e0c3aece60dead24f270b4d"
 }
 
 # The operating system. Can be wxp, w2k, w2k3, w2k8, wvista, win7, win8, win10, win11, l24 (Linux 2.4), l26 (Linux 2.6+), solaris or other. Defaults to other.
@@ -11,7 +11,7 @@ variable "os" {
 
 variable "iso_url" {
   type    = string
-  default = "https://old-releases.ubuntu.com/releases/24.04.2/ubuntu-24.04.2-desktop-amd64.iso"
+  default = "https://old-releases.ubuntu.com/releases/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
 }
 
 variable "vm_cpu_cores" {
@@ -31,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "ubuntu-24.04.2-x64-no-desktop-template"
+  default = "ubuntu-24.04.2-x64-server-no-template"
 }
 
 variable "ssh_password" {
@@ -82,7 +82,7 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Ubutntu 24.04 Desktop template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
+  template_description = "Ubutntu 24.04 Server template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
 source "proxmox-iso" "ubuntu2404" {

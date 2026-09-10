@@ -31,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "ubuntu-26.04.1-x64-no-desktop-template"
+  default = "ubuntu-26.04.1-x64-desktop-no-template"
 }
 
 variable "ssh_password" {

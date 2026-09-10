@@ -1,9 +1,9 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:d6dab0c3a657988501b4bd76f1297c053df710e06e0c3aece60dead24f270b4d"
+  default = "sha256:6dbefacc95e3b556c19c48e8bae39b8b505e2d3a1aba0bfb7ab62b036c3d2ba3"
 }
 
-# The operating system. Can be wxp, w2k, w2k3, w2k8, wvista, win7, win8, win10, win11, l24 (Linux 2.4), l26 (Linux 2.6+), solaris or other. Defaults to other.
+# The operating system. Can be wxp, w2k, w2k3, w2k8, wvista, win7, win8, win10, l24 (Linux 2.4), l26 (Linux 2.6+), solaris or other. Defaults to other.
 variable "os" {
   type    = string
   default = "l26"
@@ -11,7 +11,7 @@ variable "os" {
 
 variable "iso_url" {
   type    = string
-  default = "https://old-releases.ubuntu.com/releases/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
+  default = "https://cdimage.kali.org/kali-2026.2/kali-linux-2026.2-installer-amd64.iso"
 }
 
 variable "vm_cpu_cores" {
@@ -21,7 +21,7 @@ variable "vm_cpu_cores" {
 
 variable "vm_disk_size" {
   type    = string
-  default = "200G"
+  default = "250G"
 }
 
 variable "vm_memory" {
@@ -31,17 +31,17 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "ubuntu-24.04.2-x64-no-server-template"
+  default = "kali-2026.2-x64-desktop-no-template"
 }
 
 variable "ssh_password" {
   type    = string
-  default = "password"
+  default = "kali"
 }
 
 variable "ssh_username" {
   type    = string
-  default = "localuser"
+  default = "kali"
 }
 
 # This block has to be in each file or packer won't be able to use the variables
@@ -82,20 +82,29 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Ubutntu 24.04 Server template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
+  template_description = "Kali Linux 2026.2 template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => kali:kali"
 }
 
-source "proxmox-iso" "ubuntu2404" {
+source "proxmox-iso" "kali" {
   boot_command = [
-    "e<down><down><down><end><wait>",
-    " autoinstall<wait>",
-    " ds='nocloud-net;s=http://{{ .HTTPIP }}:{{ .HTTPPort }}/'",
-    "<wait10>",
-    "<F10>"
+    "<esc><wait>",
+    "auto <wait>",
+    "console-keymaps-at/keymap=no <wait>",
+    "console-setup/ask_detect=false <wait>",
+    "debconf/frontend=noninteractive <wait>",
+    "debian-installer=en_US <wait>",
+    "fb=false <wait>",
+    "install <wait>",
+    "kbd-chooser/method=no <wait>",
+    "keyboard-configuration/xkb-keymap=no <wait>",
+    "locale=en_US <wait>",
+    "netcfg/get_hostname=kali <wait>",
+    "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/kali-preseed.cfg <wait>",
+    "<enter><wait>"
   ]
-  boot_key_interval      = "100ms"
-  boot_keygroup_interval = "2s"
-  http_directory         = "./http"
+  boot_key_interval = "100ms"
+  boot_wait         = "15s"
+  http_directory    = "./http"
 
   communicator    = "ssh"
   cores           = "${var.vm_cpu_cores}"
@@ -134,23 +143,15 @@ source "proxmox-iso" "ubuntu2404" {
 }
 
 build {
-  sources = ["source.proxmox-iso.ubuntu2404"]
+  sources = ["source.proxmox-iso.kali"]
 
   provisioner "ansible" {
-    playbook_file = "ansible/reset-machine-id.yml"
-    use_proxy     = false
-    user = "${var.ssh_username}"
-    extra_arguments = ["--extra-vars", "{ansible_python_interpreter: /usr/bin/python3, ansible_password: ${var.ssh_password}, ansible_sudo_pass: ${var.ssh_password}}"]
-    ansible_env_vars = ["ANSIBLE_HOME=${var.ansible_home}", "ANSIBLE_LOCAL_TEMP=${var.ansible_home}/tmp", "ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=${var.ansible_home}/pc", "ANSIBLE_SSH_CONTROL_PATH_DIR=${var.ansible_home}/cp"]
+    user               = "${var.ssh_username}"
+    use_proxy          = false
+    playbook_file      = "ansible/kali.yml"
+    extra_arguments    = ["--extra-vars", "{ansible_python_interpreter: /usr/bin/python3, ansible_password: ${var.ssh_password}, ansible_sudo_pass: ${var.ssh_password}}"]
+    ansible_env_vars   = ["ANSIBLE_HOME=${var.ansible_home}", "ANSIBLE_LOCAL_TEMP=${var.ansible_home}/tmp", "ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=${var.ansible_home}/pc", "ANSIBLE_SSH_CONTROL_PATH_DIR=${var.ansible_home}/cp"]
     skip_version_check = true
   }
 
-  provisioner "ansible" {
-    playbook_file = "ansible/reset-ssh-host-keys.yml"
-    use_proxy     = false
-    user = "${var.ssh_username}"
-    extra_arguments = ["--extra-vars", "{ansible_python_interpreter: /usr/bin/python3, ansible_password: ${var.ssh_password}, ansible_sudo_pass: ${var.ssh_password}}"]
-    ansible_env_vars = ["ANSIBLE_HOME=${var.ansible_home}", "ANSIBLE_LOCAL_TEMP=${var.ansible_home}/tmp", "ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=${var.ansible_home}/pc", "ANSIBLE_SSH_CONTROL_PATH_DIR=${var.ansible_home}/cp"]
-    skip_version_check = true
-  }
 }

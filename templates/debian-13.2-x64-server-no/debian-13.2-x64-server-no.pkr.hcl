@@ -1,6 +1,6 @@
 variable "iso_checksum" {
   type    = string
-  default = "sha256:6dbefacc95e3b556c19c48e8bae39b8b505e2d3a1aba0bfb7ab62b036c3d2ba3"
+  default = "sha512:891d7936a2e21df1d752e5d4c877bb7ca2759c902b0bfbf5527098464623bedaa17260e8bd4acf1331580ae56a6a87a08cc2f497102daa991d5e4e4018fee82b"
 }
 
 # The operating system. Can be wxp, w2k, w2k3, w2k8, wvista, win7, win8, win10, l24 (Linux 2.4), l26 (Linux 2.6+), solaris or other. Defaults to other.
@@ -11,37 +11,37 @@ variable "os" {
 
 variable "iso_url" {
   type    = string
-  default = "https://cdimage.kali.org/kali-2026.2/kali-linux-2026.2-installer-amd64.iso"
+  default = "https://cdimage.debian.org/cdimage/archive/13.2.0/amd64/iso-cd/debian-13.2.0-amd64-netinst.iso"
 }
 
 variable "vm_cpu_cores" {
   type    = string
-  default = "4"
+  default = "2"
 }
 
 variable "vm_disk_size" {
   type    = string
-  default = "250G"
+  default = "60G"
 }
 
 variable "vm_memory" {
   type    = string
-  default = "8192"
+  default = "4096"
 }
 
 variable "vm_name" {
   type    = string
-  default = "kali-2026-2-x64-no-desktop-template"
+  default = "debian-13.2-x64-server-no-template"
 }
 
 variable "ssh_password" {
   type    = string
-  default = "kali"
+  default = "debian"
 }
 
 variable "ssh_username" {
   type    = string
-  default = "kali"
+  default = "debian"
 }
 
 # This block has to be in each file or packer won't be able to use the variables
@@ -82,29 +82,30 @@ variable "ludus_nat_interface" {
 ####
 
 locals {
-  template_description = "Kali Linux 2026.2 template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => kali:kali"
+  template_description = "Debian 13.2 template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => debian:debian"
 }
 
-source "proxmox-iso" "kali" {
+source "proxmox-iso" "debian13" {
   boot_command = [
-    "<esc><wait>",
-    "auto <wait>",
-    "console-keymaps-at/keymap=no <wait>",
-    "console-setup/ask_detect=false <wait>",
-    "debconf/frontend=noninteractive <wait>",
-    "debian-installer=en_US <wait>",
-    "fb=false <wait>",
-    "install <wait>",
-    "kbd-chooser/method=no <wait>",
-    "keyboard-configuration/xkb-keymap=no <wait>",
-    "locale=en_US <wait>",
-    "netcfg/get_hostname=kali <wait>",
-    "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/kali-preseed.cfg <wait>",
-    "<enter><wait>"
+    "<down><tab>", # non-graphical install
+    "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/debian-13-preseed.cfg ",
+    "language=en locale=en_US.UTF-8 ",
+    "country=US keymap=no ",
+    "hostname=debian13 domain=local ",
+    "<enter><wait>",
   ]
   boot_key_interval = "100ms"
-  boot_wait         = "15s"
-  http_directory    = "./http"
+  http_directory = "./http"
+
+  boot_iso {
+    type              = "ide"
+    iso_checksum      = "${var.iso_checksum}"
+    iso_url           = "${var.iso_url}"
+    iso_storage_pool  = "${var.iso_storage_pool}"
+    iso_download_pve  = true
+    unmount           = true
+    keep_cdrom_device = false
+  }
 
   communicator    = "ssh"
   cores           = "${var.vm_cpu_cores}"
@@ -120,9 +121,6 @@ source "proxmox-iso" "kali" {
   }
   pool                     = "${var.proxmox_pool}"
   insecure_skip_tls_verify = "${var.proxmox_skip_tls_verify}"
-  iso_checksum             = "${var.iso_checksum}"
-  iso_url                  = "${var.iso_url}"
-  iso_storage_pool         = "${var.iso_storage_pool}"
   memory                   = "${var.vm_memory}"
   network_adapters {
     bridge = "${var.ludus_nat_interface}"
@@ -138,20 +136,18 @@ source "proxmox-iso" "kali" {
   ssh_password         = "${var.ssh_password}"
   ssh_username         = "${var.ssh_username}"
   ssh_wait_timeout     = "30m"
-  unmount_iso          = true
   task_timeout         = "20m" // On slow disks the imgcopy operation takes > 1m
 }
 
 build {
-  sources = ["source.proxmox-iso.kali"]
+  sources = ["source.proxmox-iso.debian13"]
 
   provisioner "ansible" {
-    user               = "${var.ssh_username}"
-    use_proxy          = false
-    playbook_file      = "ansible/kali.yml"
-    extra_arguments    = ["--extra-vars", "{ansible_python_interpreter: /usr/bin/python3, ansible_password: ${var.ssh_password}, ansible_sudo_pass: ${var.ssh_password}}"]
-    ansible_env_vars   = ["ANSIBLE_HOME=${var.ansible_home}", "ANSIBLE_LOCAL_TEMP=${var.ansible_home}/tmp", "ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=${var.ansible_home}/pc", "ANSIBLE_SSH_CONTROL_PATH_DIR=${var.ansible_home}/cp"]
+    playbook_file = "ansible/reset-ssh-host-keys.yml"
+    use_proxy     = false
+    user = "${var.ssh_username}"
+    extra_arguments = ["--extra-vars", "{ansible_python_interpreter: /usr/bin/python3, ansible_password: ${var.ssh_password}, ansible_sudo_pass: ${var.ssh_password}}"]
+    ansible_env_vars = ["ANSIBLE_HOME=${var.ansible_home}", "ANSIBLE_LOCAL_TEMP=${var.ansible_home}/tmp", "ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=${var.ansible_home}/pc", "ANSIBLE_SSH_CONTROL_PATH_DIR=${var.ansible_home}/cp"]
     skip_version_check = true
   }
-
 }
