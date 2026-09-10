@@ -25,7 +25,10 @@ if the requested physical layout is ambiguous, such as ANSI US versus British,
 standard versus Dvorak, or a locale with multiple national layouts.
 Stop before renaming and ask one short question if directory and installer
 evidence do not resolve a legacy basename token. Never assume `no` is the
-locale; it can belong to a qualifier such as `no_security_updates`.
+locale; it can belong to a qualifier such as `no-security-updates`. Classify
+an explicitly named environment such as `flare-vm-no` before applying an
+OS-shaped grammar; preserve its identity rather than inventing OS, release,
+architecture, edition, or feature fields.
 
 ## Identifier Lookup
 
@@ -44,14 +47,20 @@ Validate values before editing. Do not invent them.
   layout pair such as `0409:00000409`. Multiple values are semicolon-separated
   and the first is the default. Confirm values using Microsoft documentation
   or the target Windows image's keyboard-layout registry data.
-- Reconstruct the complete basename with hyphens between semantic fields and
-  underscores within one field. Use dots for numeric release components and
-  underscores for semantic alphanumeric release parts. Use
+- Reconstruct the complete basename with hyphens between and within semantic
+  fields. Use dots for numeric release components and hyphens for semantic
+  alphanumeric release parts (`11-22h2`) and multiword qualifiers
+  (`no-security-updates`). Use
   `<os>-<release>-<arch>-<role>[-<qualifier>...]-<locale>` for Linux,
   `windows-<release>-<arch>[-<qualifier>...]-<locale>` for Windows clients, and
   `windows-server-<release>-<arch>[-<qualifier>...]-<locale>` for Windows
   Server. Require `desktop` or `server` in the Linux role position and an
   explicit lowercase two-letter locale, including `us`, as the final field.
+- Require lowercase ASCII DNS-compatible names without underscores: each
+  dot-separated label is 1–63 characters and starts and ends with a letter or
+  digit; the full textual name is at most 253 characters without a trailing
+  root dot. Check both the basename and final built name including `-template`,
+  which extends the final label.
 
 For standard Norwegian Bokmal QWERTY, use:
 
@@ -68,11 +77,37 @@ Norwegian XKB keyboard.
 
 ## Required Rename
 
+### Named FLARE environment
+
+1. Detect `flare-vm-<locale>` before applying an OS-shaped grammar. Preserve the
+   FLARE identity and schema, but replace only the final locale with the
+   requested validated locale. For example, rename `flare-vm-no` to
+   `flare-vm-us`; set the corresponding `vm_name` to
+   `flare-vm-us-template`.
+2. Stop and report a conflict if the target directory or target top-level
+   `.pkr.hcl` already exists. Do not merge into or overwrite either target.
+3. Do not infer or add OS, release, architecture, edition, feature, or excluded
+   Windows metadata fields: `tpm_bypas`, `tpm_bypass`, `standard`,
+   `standard_evaluation`, and `desktop_experience`, including their hyphenated
+   spellings. Preserve the underlying
+   template settings. Retain `tpm` only when a TPM device is configured; never
+   infer it from bypass registry commands.
+4. Rename the directory and top-level `.pkr.hcl` to the new
+   `flare-vm-<locale>` basename, update exact identity references, and leave
+   release-neutral support files unchanged.
+
+### Generic OS template
+
 1. Classify the family, release, architecture, Linux role when applicable,
    qualifiers, and locale from the complete template directory and installer
    evidence, then reconstruct the full canonical target basename. For example,
    legacy `ubuntu-24.04.2-x64-us-desktop` becomes
    `ubuntu-24.04.2-x64-desktop-no`.
+   Add qualifiers only with direct template evidence: retain `enterprise`,
+   explicitly identified `no-security-updates`, and genuine `tpm` only for a
+   configured TPM device. Exclude the incidental Windows metadata fields above
+   and their hyphenated spellings; never use `flare-vm` as an OS qualifier or
+   infer `tpm` from bypass commands.
 2. Stop and report a conflict before renaming if either the target directory or
    target top-level `.pkr.hcl` already exists. Do not merge into or overwrite
    either target.
@@ -90,6 +125,8 @@ the user explicitly asks to retain both locale variants.
 Inspect the complete renamed `.pkr.hcl`; do not limit the change to `vm_name`.
 
 1. Change the `vm_name` default to `<target-basename>-template`.
+   For the named FLARE branch, use the new `flare-vm-<locale>-template` value
+   and do not apply release or OS source-label edits.
 2. Replace locale-bearing internal source labels when they contain the old
    template locale. Update the matching `build.sources` reference in the same
    edit. Leave release-neutral labels alone.
@@ -171,25 +208,33 @@ input-language-only request.
 
 Before finishing:
 
-1. Confirm the target basename follows the family shape, uses dots for numeric
-   release components and underscores within semantic fields, places the Linux
-   role correctly when applicable, and ends with an explicit locale.
-2. Confirm the directory basename and `.pkr.hcl` basename are identical.
-3. Confirm the built name and `vm_name` default follow the same canonical
-   basename plus exactly one `-template` suffix.
-4. Search the converted template for the old full basename and old keyboard
+1. For the named FLARE branch, confirm the target is exactly
+   `flare-vm-<new-locale>`, the old final locale was replaced rather than an OS
+   shape being invented, and no excluded Windows metadata field was added.
+   Confirm `tpm` is present only when a TPM device is configured, never because
+   of bypass registry commands.
+2. For the generic OS branch, confirm the target basename follows the family
+   shape, uses dots for numeric release components and hyphens within
+   semantic fields, places the Linux role correctly when applicable, and ends
+   with an explicit locale.
+3. Confirm the directory basename and `.pkr.hcl` basename are identical.
+4. Confirm the built name and `vm_name` default follow the same canonical
+   basename plus exactly one `-template` suffix. Validate both names against
+   the DNS label boundaries, 63-character label limit, and 253-character total
+   limit above.
+5. Search the converted template for the old full basename and old keyboard
    values. Classify each remaining match; ISO filenames and prose may
    legitimately contain language text.
-5. Confirm all Windows `InputLocale` elements have the requested value, or all
+6. Confirm all Windows `InputLocale` elements have the requested value, or all
    Linux installer and boot-command keyboard values agree.
-6. For Ubuntu, verify YAML indentation and confirm `layout` and `variant` are
+7. For Ubuntu, verify YAML indentation and confirm `layout` and `variant` are
    children of `keyboard`, which is a child of `autoinstall`.
-7. Run `packer fmt -check <target.pkr.hcl>` when Packer is installed. If it
+8. Run `packer fmt -check <target.pkr.hcl>` when Packer is installed. If it
    fails only because formatting differs, run `packer fmt <target.pkr.hcl>` and
    check again.
-8. Run an available YAML parser or autoinstall schema validator for Ubuntu and
+9. Run an available YAML parser or autoinstall schema validator for Ubuntu and
    an XML parser for Windows.
-9. Run `git diff --check` and inspect the complete diff for unintended locale,
+10. Run `git diff --check` and inspect the complete diff for unintended locale,
    ISO, timezone, or display-language changes.
 
 Report the old and new template basenames, the requested physical layout, the
