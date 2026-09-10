@@ -1,0 +1,6 @@
+[submodule "ansible/collections/ludus_adcs"]
+	path = ansible/collections/ludus_adcs
+	url = https://github.com/badsectorlabs/ludus_adcs.git
+[submodule "ansible/collections/ludus_windows_utils"]
+	path = ansible/collections/ludus_windows_utils
+	url = https://github.com/badsectorlabs/ludus_windows_utils.git
