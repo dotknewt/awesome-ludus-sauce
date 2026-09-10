@@ -16,7 +16,7 @@ defaults:
 ludus:
   - vm_name: "DC"
     hostname: "DC"
-    template: win2022-server-x64-no-template
+    template: windows-server-2022-x64-no-template
     vlan: 10
     ip_last_octet: 11
     ram_gb: 16
@@ -49,7 +49,7 @@ ludus:
 
   - vm_name: "CERTER"
     hostname: "CERTER"
-    template: win2022-server-x64-no-template
+    template: windows-server-2022-x64-no-template
     vlan: 10
     ip_last_octet: 12
     ram_gb: 8
@@ -88,7 +88,7 @@ ludus:
 
   - vm_name: "WIN11V"
     hostname: "WIN11V"
-    template: win11-22h2-x64-enterprise-no-template
+    template: windows-11_22h2-x64-enterprise-no-template
     vlan: 10
     ip_last_octet: 13
     ram_gb: 16
@@ -106,7 +106,7 @@ ludus:
 
   - vm_name: "WIN11A"
     hostname: "WIN11A"
-    template: win11-22h2-x64-enterprise-no-template
+    template: windows-11_22h2-x64-enterprise-no-template
     vlan: 10
     ip_last_octet: 14
     ram_gb: 16
@@ -128,7 +128,7 @@ ludus:
 
   - vm_name: "linuxa"
     hostname: "linuxa"
-    template: debian-13-x64-no-server-template
+    template: debian-13.2-x64-server-no-template
     vlan: 10
     ip_last_octet: 15
     ram_gb: 8
@@ -146,7 +146,7 @@ ludus:
 
   - vm_name: "linuxv"
     hostname: "linuxv"
-    template: debian-13-x64-no-server-template
+    template: debian-13.2-x64-server-no-template
     vlan: 10
     ip_last_octet: 16
     ram_gb: 16
@@ -177,7 +177,7 @@ ludus:
 
   - vm_name: "pcap"
     hostname: "pcap"
-    template: debian-13-x64-no-server-template
+    template: debian-13.2-x64-server-no-template
     vlan: 10
     ip_last_octet: 17
     ram_gb: 64
