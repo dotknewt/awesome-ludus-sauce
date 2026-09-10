@@ -31,7 +31,7 @@ variable "vm_memory" {
 
 variable "vm_name" {
   type    = string
-  default = "windows-11_24h2-x64-enterprise-tpm-no-template"
+  default = "windows-11-24h2-x64-enterprise-tpm-us-template"
 }
 
 variable "winrm_password" {
@@ -85,7 +85,7 @@ locals {
   template_description = "Windows 11 24H2 64-bit Enterprise template built ${legacy_isotime("2006-01-02 03:04:05")} username:password => localuser:password"
 }
 
- source "proxmox-iso" "windows-11_24h2-x64-enterprise-tpm-no" {
+source "proxmox-iso" "windows-11-24h2-x64-enterprise-tpm-us" {
   # Hit the "Press any key to boot from CD ROM"
   boot_wait = "-1s" # To set boot_wait to 0s, use a negative number, such as "-1s"
   boot_command = [  # 120 seconds of enters to cover all different speeds of disks as windows boots
@@ -182,7 +182,7 @@ locals {
 }
 
 build {
-  sources = ["source.proxmox-iso.windows-11_24h2-x64-enterprise-tpm-no"]
+  sources = ["source.proxmox-iso.windows-11-24h2-x64-enterprise-tpm-us"]
 
   provisioner "ansible" {
     playbook_file = "ansible/windows_update_security_updates.yml"
