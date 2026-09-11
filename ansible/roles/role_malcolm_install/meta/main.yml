@@ -1,3 +1,2 @@
 ---
-dependencies:
-  - role: ludus_install_docker
+dependencies: []

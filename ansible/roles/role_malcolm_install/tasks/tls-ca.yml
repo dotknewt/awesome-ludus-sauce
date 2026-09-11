@@ -1,0 +1,209 @@
+---
+- name: Inspect every forwarding CA and trust artifact
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.key"
+    - "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+    - "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/ca.crt"
+    - "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.csr"
+    - "{{ ludus_install_malcolm_install_dir }}/logstash/certs/server.key"
+    - "{{ ludus_install_malcolm_install_dir }}/logstash/certs/server.crt"
+    - "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/client.key"
+    - "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/client.crt"
+  register: _ludus_install_malcolm_ca_stats
+  no_log: true
+  diff: false
+
+- name: Inspect durable forwarding CA initialization evidence
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/forwarding-ca"
+  register: _ludus_install_malcolm_ca_evidence_stat
+  no_log: true
+  diff: false
+
+- name: Reject complete loss of an established forwarding CA
+  ansible.builtin.assert:
+    that:
+      - >-
+        (_ludus_install_malcolm_ca_stats.results[:3]
+         | selectattr('stat.exists') | list | length > 0)
+        or (not _ludus_install_malcolm_ca_evidence_stat.stat.exists
+            and (_ludus_install_malcolm_ca_stats.results[3:]
+                 | selectattr('stat.exists') | list | length == 0))
+    fail_msg: >-
+      All authoritative forwarding CA artifacts are missing from an established
+      trust set. Restore logstash/certs/ca.key and a matching ca.crt from backup;
+      the role will not silently create a replacement trust root.
+  no_log: true
+  diff: false
+
+- name: Read existing forwarding CA certificate copies
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop:
+    - path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+      exists: "{{ _ludus_install_malcolm_ca_stats.results[1].stat.exists }}"
+    - path: "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/ca.crt"
+      exists: "{{ _ludus_install_malcolm_ca_stats.results[2].stat.exists }}"
+  when: item.exists | bool
+  register: _ludus_install_malcolm_ca_contents
+  no_log: true
+  diff: false
+
+- name: Require established forwarding CA copies to match
+  ansible.builtin.assert:
+    that: >-
+      _ludus_install_malcolm_ca_contents.results[0].content
+      == _ludus_install_malcolm_ca_contents.results[1].content
+    fail_msg: Established forwarding CA trust copies differ and were left untouched.
+  when:
+    - _ludus_install_malcolm_ca_stats.results[1].stat.exists
+    - _ludus_install_malcolm_ca_stats.results[2].stat.exists
+  no_log: true
+  diff: false
+
+- name: Validate established forwarding CA private key
+  community.crypto.openssl_privatekey_info:
+    path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.key"
+  register: _ludus_install_malcolm_ca_key_info
+  when: _ludus_install_malcolm_ca_stats.results[0].stat.exists
+  no_log: true
+  diff: false
+
+- name: Validate established Logstash CA certificate
+  community.crypto.x509_certificate_info:
+    path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+    valid_at:
+      now: "+0s"
+  register: _ludus_install_malcolm_logstash_ca_info
+  when: _ludus_install_malcolm_ca_stats.results[1].stat.exists
+  no_log: true
+  diff: false
+
+- name: Validate established Filebeat CA trust certificate
+  community.crypto.x509_certificate_info:
+    path: "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/ca.crt"
+    valid_at:
+      now: "+0s"
+  register: _ludus_install_malcolm_filebeat_ca_info
+  when: _ludus_install_malcolm_ca_stats.results[2].stat.exists
+  no_log: true
+  diff: false
+
+- name: Record retained forwarding CA certificate metadata
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_retained_ca_exists: >-
+      {{ _ludus_install_malcolm_ca_stats.results[1].stat.exists
+         or _ludus_install_malcolm_ca_stats.results[2].stat.exists }}
+    _ludus_install_malcolm_retained_ca_info: >-
+      {{ _ludus_install_malcolm_logstash_ca_info
+         if _ludus_install_malcolm_ca_stats.results[1].stat.exists
+         else _ludus_install_malcolm_filebeat_ca_info }}
+  no_log: true
+  diff: false
+
+- name: Reject unrecoverable established forwarding CA state
+  ansible.builtin.assert:
+    that:
+      - not _ludus_install_malcolm_retained_ca_exists or _ludus_install_malcolm_ca_stats.results[0].stat.exists
+      - not _ludus_install_malcolm_retained_ca_exists or _ludus_install_malcolm_retained_ca_info.valid_at.now
+      - >-
+        not _ludus_install_malcolm_retained_ca_exists
+        or ('CA:TRUE' in _ludus_install_malcolm_retained_ca_info.basic_constraints)
+      - >-
+        not _ludus_install_malcolm_retained_ca_exists
+        or _ludus_install_malcolm_ca_key_info.public_key
+           == _ludus_install_malcolm_retained_ca_info.public_key
+    fail_msg: >-
+      Established forwarding CA/trust state has no matching signing key, is
+      invalid, or is expired. All CA artifacts were left untouched; restore the
+      matching CA key or explicitly migrate the trust set.
+  no_log: true
+  diff: false
+
+- name: Restore missing Logstash CA certificate from retained Filebeat trust
+  ansible.builtin.copy:
+    src: "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/ca.crt"
+    dest: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+    remote_src: true
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+  when:
+    - not _ludus_install_malcolm_ca_stats.results[1].stat.exists
+    - _ludus_install_malcolm_ca_stats.results[2].stat.exists
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Generate forwarding CA key only for uninitialized state
+  community.crypto.openssl_privatekey:
+    path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.key"
+    size: 2048
+    type: RSA
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  when:
+    - not _ludus_install_malcolm_ca_stats.results[0].stat.exists
+    - not _ludus_install_malcolm_retained_ca_exists
+  no_log: true
+  diff: false
+
+- name: Generate forwarding CA signing request for uninitialized certificate
+  community.crypto.openssl_csr:
+    path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.csr"
+    privatekey_path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.key"
+    common_name: Malcolm Forwarding CA
+    basic_constraints: ["CA:TRUE"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  when: not _ludus_install_malcolm_retained_ca_exists
+  no_log: true
+  diff: false
+
+- name: Generate forwarding CA certificate for uninitialized state
+  community.crypto.x509_certificate:
+    path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+    csr_path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.csr"
+    privatekey_path: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: +3650d
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+  when: not _ludus_install_malcolm_retained_ca_exists
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Install missing Filebeat trust from retained forwarding CA
+  ansible.builtin.copy:
+    src: "{{ ludus_install_malcolm_install_dir }}/logstash/certs/ca.crt"
+    dest: "{{ ludus_install_malcolm_install_dir }}/filebeat/certs/ca.crt"
+    remote_src: true
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+  when: not _ludus_install_malcolm_ca_stats.results[2].stat.exists
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Record durable forwarding CA initialization evidence
+  ansible.builtin.copy:
+    content: "role_malcolm_install initialized forwarding CA\n"
+    dest: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/forwarding-ca"
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  no_log: true
+  diff: false

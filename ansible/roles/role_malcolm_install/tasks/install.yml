@@ -1,0 +1,108 @@
+---
+- name: Inspect Malcolm installation parent
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir | dirname }}"
+  register: _ludus_install_malcolm_parent_stat
+
+- name: Create a missing Malcolm installation parent
+  ansible.builtin.file:
+    path: "{{ ludus_install_malcolm_install_dir | dirname }}"
+    state: directory
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0755"
+  when: not _ludus_install_malcolm_parent_stat.stat.exists
+
+- name: Complete a validated no-checkout partial source
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ _ludus_install_malcolm_partial_dir }}"
+      - checkout
+      - "{{ ludus_install_malcolm_commit }}"
+      - --
+      - .
+  become: true
+  become_user: "{{ ludus_install_malcolm_user }}"
+  changed_when: true
+  when:
+    - not _ludus_install_malcolm_source_exists
+    - _ludus_install_malcolm_partial_exists
+    - _ludus_install_malcolm_partial_no_checkout
+
+- name: Clone the pinned Malcolm release into staging
+  ansible.builtin.git:
+    repo: https://github.com/cisagov/Malcolm.git
+    dest: "{{ _ludus_install_malcolm_partial_dir }}"
+    version: "{{ ludus_install_malcolm_commit }}"
+    update: true
+  become: true
+  become_user: "{{ ludus_install_malcolm_user }}"
+  when: not _ludus_install_malcolm_source_exists
+
+- name: Verify the staged Malcolm commit
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ _ludus_install_malcolm_partial_dir }}"
+      - rev-parse
+      - HEAD
+  register: _ludus_install_malcolm_staged_commit
+  changed_when: false
+  when: not _ludus_install_malcolm_source_exists
+
+- name: Require the exact staged Malcolm commit
+  ansible.builtin.assert:
+    that: _ludus_install_malcolm_staged_commit.stdout | trim == ludus_install_malcolm_commit
+    fail_msg: >-
+      The {{ ludus_install_malcolm_version }} clone resolved to
+      {{ _ludus_install_malcolm_staged_commit.stdout | trim }}, not immutable
+      commit {{ ludus_install_malcolm_commit }}. Staging was retained for inspection.
+  when: not _ludus_install_malcolm_source_exists
+
+- name: Install verified Malcolm source atomically
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ _ludus_install_malcolm_partial_dir }}"
+      - "{{ ludus_install_malcolm_install_dir }}"
+    creates: "{{ ludus_install_malcolm_install_dir }}"
+    removes: "{{ _ludus_install_malcolm_partial_dir }}"
+  become: true
+  become_user: "{{ ludus_install_malcolm_user }}"
+  when: not _ludus_install_malcolm_source_exists
+
+- name: Write the verified Malcolm release marker
+  ansible.builtin.copy:
+    content: |
+      version: {{ ludus_install_malcolm_version }}
+      commit: {{ ludus_install_malcolm_commit }}
+      config_schema: 1
+    dest: "{{ _ludus_install_malcolm_release_marker }}"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+
+- name: Install pinned Malcolm Python requirements in its venv
+  ansible.builtin.pip:
+    name:
+      - requests==2.33.1
+      - psutil==7.1.3
+      - colorama==0.4.6
+      - distro==1.9.0
+      - python-dotenv==1.2.2
+      - ruamel.yaml==0.18.14
+      - passlib==1.7.4
+      - bcrypt==4.3.0
+    state: present
+    virtualenv: "{{ ludus_install_malcolm_venv_dir }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+    extra_args: --no-cache-dir
+  become: true
+  become_user: "{{ ludus_install_malcolm_user }}"
+
+- name: Record installed source as verified for downstream tasks
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_source_verified: true

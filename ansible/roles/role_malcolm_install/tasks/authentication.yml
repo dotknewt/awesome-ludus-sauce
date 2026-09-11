@@ -1,0 +1,312 @@
+---
+- name: Classify legacy runtime before credential generation
+  ansible.builtin.include_tasks: runtime-state.yml
+
+- name: Ensure Malcolm authentication directories exist
+  ansible.builtin.file:
+    path: "{{ ludus_install_malcolm_install_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0750"
+  loop:
+    - nginx
+    - htadmin
+    - .ludus-initialization
+  no_log: true
+  diff: false
+
+- name: Inspect primary OpenSearch credentials before backend mutation
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/.opensearch.primary.curlrc"
+  register: _ludus_install_malcolm_primary_curlrc_stat
+  no_log: true
+  diff: false
+
+- name: Inspect primary OpenSearch initialization evidence before backend mutation
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/opensearch-primary-curlrc"
+  register: _ludus_install_malcolm_primary_curlrc_evidence_stat
+  no_log: true
+  diff: false
+
+- name: Reject primary OpenSearch loss from initialized or legacy runtime
+  ansible.builtin.assert:
+    that:
+      - >-
+        _ludus_install_malcolm_primary_curlrc_stat.stat.exists
+        or (not _ludus_install_malcolm_primary_curlrc_evidence_stat.stat.exists
+            and not _ludus_install_malcolm_legacy_runtime_established)
+    fail_msg: >-
+      Primary OpenSearch credentials are missing from initialized or legacy
+      established runtime. Restore .opensearch.primary.curlrc from backup; the
+      role will not silently rotate the password used by retained data.
+  no_log: true
+  diff: false
+
+- name: Converge independent Malcolm backend secrets
+  ansible.builtin.include_tasks: secret-key.yml
+  loop:
+    - {file: netbox-secret.env, key: SECRET_KEY, length: 50, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%@<=>?~^_-", pattern: "^[A-Za-z0-9%@<=>?~^_-]{50,}$"}
+    - {file: netbox-secret.env, key: SUPERUSER_PASSWORD, length: 24, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{24,}$"}
+    - {file: netbox-secret.env, key: SUPERUSER_API_TOKEN, length: 40, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{40,}$", finalize_file: true}
+    - {file: postgres.env, key: POSTGRES_PASSWORD, length: 24, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{24,}$"}
+    - {file: postgres.env, key: POSTGRES_NETBOX_PASSWORD, length: 24, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{24,}$"}
+    - {file: postgres.env, key: POSTGRES_KEYCLOAK_PASSWORD, length: 24, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{24,}$", finalize_file: true}
+    - {file: valkey.env, key: VALKEY_PASSWORD, length: 24, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{24,}$", finalize_file: true}
+    - {file: arkime-secret.env, key: ARKIME_PASSWORD_SECRET, length: 32, alphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pattern: "^[A-Za-z0-9_]{16,}$", finalize_file: true}
+  loop_control:
+    label: "{{ item.file }}:{{ item.key }}"
+  vars:
+    _ludus_install_malcolm_secret_file: "{{ ludus_install_malcolm_install_dir }}/config/{{ item.file }}"
+    _ludus_install_malcolm_secret_key: "{{ item.key }}"
+    _ludus_install_malcolm_secret_length: "{{ item.length }}"
+    _ludus_install_malcolm_secret_alphabet: "{{ item.alphabet }}"
+    _ludus_install_malcolm_secret_pattern: "{{ item.pattern }}"
+    _ludus_install_malcolm_secret_finalize_file: "{{ item.finalize_file | default(false) }}"
+    _ludus_install_malcolm_secret_evidence: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/config__{{ item.file }}"
+  no_log: true
+
+- name: Read established primary OpenSearch credentials
+  ansible.builtin.slurp:
+    src: "{{ ludus_install_malcolm_install_dir }}/.opensearch.primary.curlrc"
+  register: _ludus_install_malcolm_primary_curlrc
+  when: _ludus_install_malcolm_primary_curlrc_stat.stat.exists
+  no_log: true
+  diff: false
+
+- name: Classify primary OpenSearch credential state
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_primary_curlrc_content: >-
+      {{ (_ludus_install_malcolm_primary_curlrc.content | default('') | b64decode)
+         if _ludus_install_malcolm_primary_curlrc_stat.stat.exists else '' }}
+    _ludus_install_malcolm_primary_curlrc_initialized: >-
+      {{ _ludus_install_malcolm_primary_curlrc_stat.stat.exists
+         and ((_ludus_install_malcolm_primary_curlrc.content | b64decode)
+              is match('^user: "malcolm_internal:[A-Za-z0-9_]{36}"\ninsecure\n?$')) }}
+  no_log: true
+  diff: false
+
+- name: Validate established primary OpenSearch credentials
+  ansible.builtin.assert:
+    that:
+      - >-
+        (not _ludus_install_malcolm_primary_curlrc_evidence_stat.stat.exists
+         and (_ludus_install_malcolm_primary_curlrc_content | length == 0))
+        or _ludus_install_malcolm_primary_curlrc_initialized
+    fail_msg: Existing primary OpenSearch credentials are invalid and were not rotated.
+  when: _ludus_install_malcolm_primary_curlrc_stat.stat.exists
+  no_log: true
+  diff: false
+
+- name: Generate missing primary OpenSearch password
+  ansible.builtin.command:
+    argv:
+      - "{{ ludus_install_malcolm_venv_dir }}/bin/python"
+      - -c
+      - "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits+'_') for _ in range(36)))"
+  register: _ludus_install_malcolm_opensearch_password
+  changed_when: true
+  when:
+    - not _ludus_install_malcolm_primary_curlrc_evidence_stat.stat.exists
+    - not _ludus_install_malcolm_primary_curlrc_initialized
+  no_log: true
+  diff: false
+
+- name: Persist missing primary OpenSearch credentials
+  ansible.builtin.copy:
+    content: |
+      user: "malcolm_internal:{{ _ludus_install_malcolm_opensearch_password.stdout }}"
+      insecure
+    dest: "{{ ludus_install_malcolm_install_dir }}/.opensearch.primary.curlrc"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+    force: true
+  when:
+    - not _ludus_install_malcolm_primary_curlrc_evidence_stat.stat.exists
+    - not _ludus_install_malcolm_primary_curlrc_initialized
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Record durable primary OpenSearch initialization evidence
+  ansible.builtin.copy:
+    content: "role_malcolm_install initialized .opensearch.primary.curlrc\n"
+    dest: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/opensearch-primary-curlrc"
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  no_log: true
+  diff: false
+
+- name: Ensure optional authentication placeholders exist
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ ludus_install_malcolm_install_dir }}/{{ item.path }}"
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: .opensearch.secondary.curlrc, mode: "0600"}
+    - {path: nginx/nginx_ldap.conf, mode: "0600"}
+    - {path: htadmin/metadata, mode: "0644"}
+  no_log: true
+  diff: false
+
+- name: Read current administrator authentication state
+  ansible.builtin.slurp:
+    src: "{{ ludus_install_malcolm_install_dir }}/config/auth.env"
+  register: _ludus_install_malcolm_auth_env
+  no_log: true
+  diff: false
+
+- name: Resolve current administrator authentication values
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_previous_admin: >-
+      {{ (((_ludus_install_malcolm_auth_env.content | b64decode)
+          | regex_findall('(?m)^MALCOLM_USERNAME=(.*)$') | first) | default('')) }}
+    _ludus_install_malcolm_previous_crypt_b64: >-
+      {{ (((_ludus_install_malcolm_auth_env.content | b64decode)
+          | regex_findall('(?m)^MALCOLM_PASSWORD=(.*)$') | first) | default('')) }}
+  no_log: true
+  diff: false
+
+- name: Decode an established administrator crypt hash
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_previous_crypt: >-
+      {{ (_ludus_install_malcolm_previous_crypt_b64 | b64decode)
+         if (_ludus_install_malcolm_previous_crypt_b64 is match('^[A-Za-z0-9+/]+={0,2}$'))
+         else '' }}
+  no_log: true
+  diff: false
+
+- name: Validate established administrator crypt state
+  ansible.builtin.assert:
+    that:
+      - >-
+        (_ludus_install_malcolm_previous_crypt_b64 is match('^[xX]+={0,2}$'))
+        or (_ludus_install_malcolm_previous_crypt is match('^[$]6[$][^$]+[$].+'))
+    fail_msg: Existing administrator crypt state is invalid and was not overwritten.
+  no_log: true
+  diff: false
+
+- name: Verify requested password against established administrator crypt hash
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - passwd
+      - -6
+      - -salt
+      - "{{ _ludus_install_malcolm_previous_crypt.split('$')[2] }}"
+      - -stdin
+    stdin: "{{ ludus_install_malcolm_admin_password }}"
+  register: _ludus_install_malcolm_crypt_verify
+  changed_when: false
+  failed_when: false
+  when:
+    - _ludus_install_malcolm_previous_admin == ludus_install_malcolm_admin_username
+    - _ludus_install_malcolm_previous_crypt is match('^[$]6[$][^$]+[$].+')
+  no_log: true
+  diff: false
+
+- name: Record whether administrator crypt requires convergence
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_admin_update: >-
+      {{ (_ludus_install_malcolm_previous_admin != ludus_install_malcolm_admin_username)
+         or (_ludus_install_malcolm_crypt_verify is skipped)
+         or (_ludus_install_malcolm_crypt_verify.stdout | default('') != _ludus_install_malcolm_previous_crypt) }}
+  no_log: true
+  diff: false
+
+- name: Generate changed administrator crypt hash
+  ansible.builtin.command:
+    argv: [openssl, passwd, -6, -stdin]
+    stdin: "{{ ludus_install_malcolm_admin_password }}"
+  register: _ludus_install_malcolm_admin_crypt
+  changed_when: true
+  when: _ludus_install_malcolm_admin_update
+  no_log: true
+  diff: false
+
+- name: Persist administrator authentication environment
+  ansible.builtin.lineinfile:
+    path: "{{ ludus_install_malcolm_install_dir }}/config/auth.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  loop:
+    - {key: MALCOLM_USERNAME, value: "{{ ludus_install_malcolm_admin_username }}"}
+    - {key: MALCOLM_PASSWORD, value: "{{ (_ludus_install_malcolm_admin_crypt.stdout | b64encode) if _ludus_install_malcolm_admin_update else _ludus_install_malcolm_previous_crypt_b64 }}"}
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Ensure administrator password file exists
+  ansible.builtin.file:
+    path: "{{ ludus_install_malcolm_install_dir }}/nginx/htpasswd"
+    state: touch
+    access_time: preserve
+    modification_time: preserve
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+  no_log: true
+  diff: false
+
+- name: Verify requested administrator htpasswd record
+  ansible.builtin.command:
+    argv:
+      - "{{ ludus_install_malcolm_venv_dir }}/bin/python"
+      - -c
+      - "from passlib.apache import HtpasswdFile; import sys; h=HtpasswdFile(sys.argv[1]); sys.exit(0 if h.check_password(sys.argv[2], sys.stdin.read().rstrip('\\n')) else 1)"
+      - "{{ ludus_install_malcolm_install_dir }}/nginx/htpasswd"
+      - "{{ ludus_install_malcolm_admin_username }}"
+    stdin: "{{ ludus_install_malcolm_admin_password }}"
+  register: _ludus_install_malcolm_htpasswd_verify
+  changed_when: false
+  failed_when: false
+  no_log: true
+  diff: false
+
+- name: Remove only the previous administrator principal after a name change
+  ansible.builtin.command:
+    argv:
+      - "{{ ludus_install_malcolm_venv_dir }}/bin/python"
+      - -c
+      - "from passlib.apache import HtpasswdFile; import sys; h=HtpasswdFile(sys.argv[1]); changed=h.delete(sys.argv[2]); h.save() if changed else None; sys.exit(0 if changed else 1)"
+      - "{{ ludus_install_malcolm_install_dir }}/nginx/htpasswd"
+      - "{{ _ludus_install_malcolm_previous_admin }}"
+  register: _ludus_install_malcolm_old_admin_removal
+  changed_when: _ludus_install_malcolm_old_admin_removal.rc == 0
+  failed_when: _ludus_install_malcolm_old_admin_removal.rc not in [0, 1]
+  when:
+    - _ludus_install_malcolm_previous_admin | length > 0
+    - _ludus_install_malcolm_previous_admin != ludus_install_malcolm_admin_username
+    - not (_ludus_install_malcolm_previous_admin is match('^[aA]dmin$') and _ludus_install_malcolm_previous_crypt_b64 is match('^[xX]+={0,2}$'))
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Converge only the requested administrator htpasswd record
+  ansible.builtin.command:
+    argv:
+      - "{{ ludus_install_malcolm_venv_dir }}/bin/python"
+      - -c
+      - "from passlib.apache import HtpasswdFile; import sys; h=HtpasswdFile(sys.argv[1], default_scheme='bcrypt'); h.set_password(sys.argv[2], sys.stdin.read().rstrip('\\n')); h.save()"
+      - "{{ ludus_install_malcolm_install_dir }}/nginx/htpasswd"
+      - "{{ ludus_install_malcolm_admin_username }}"
+    stdin: "{{ ludus_install_malcolm_admin_password }}"
+  changed_when: true
+  when: _ludus_install_malcolm_htpasswd_verify.rc != 0
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Converge Malcolm authentication TLS artifacts
+  ansible.builtin.include_tasks: tls.yml
+  no_log: true

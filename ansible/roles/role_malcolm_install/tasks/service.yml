@@ -1,0 +1,82 @@
+---
+- name: Validate Malcolm service inputs
+  ansible.builtin.include_tasks: service_validate.yml
+
+- name: Resolve required Malcolm images
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      - --profile
+      - malcolm
+      - config
+      - --images
+  args:
+    chdir: "{{ ludus_install_malcolm_install_dir }}"
+  register: _ludus_install_malcolm_required_images
+  changed_when: false
+
+- name: Inspect locally available Malcolm images
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ item }}"
+  loop: "{{ _ludus_install_malcolm_required_images.stdout_lines | unique }}"
+  register: _ludus_install_malcolm_image_inspection
+  changed_when: false
+  failed_when: false
+  no_log: true
+  diff: false
+
+- name: Pull missing Malcolm images with a bounded operation
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/timeout
+      - --signal=TERM
+      - --kill-after=30s
+      - "{{ ludus_install_malcolm_image_pull_timeout_seconds }}"
+      - docker
+      - compose
+      - --file
+      - "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      - --profile
+      - malcolm
+      - pull
+  args:
+    chdir: "{{ ludus_install_malcolm_install_dir }}"
+  become: true
+  become_user: "{{ ludus_install_malcolm_user }}"
+  when: _ludus_install_malcolm_image_inspection.results | selectattr('rc', 'ne', 0) | list | length > 0
+  changed_when: true
+
+- name: Converge Malcolm systemd lifecycle
+  ansible.builtin.include_tasks: service_lifecycle.yml
+
+- name: Wait for Malcolm container health convergence
+  ansible.builtin.include_tasks: service_health.yml
+
+- name: Wait for authenticated Malcolm processing readiness
+  ansible.builtin.uri:
+    url: https://127.0.0.1/mapi/ready
+    method: GET
+    url_username: "{{ ludus_install_malcolm_admin_username }}"
+    url_password: "{{ ludus_install_malcolm_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    return_content: true
+    status_code: 200
+    timeout: 5
+  register: _ludus_install_malcolm_readiness
+  until:
+    - _ludus_install_malcolm_readiness.json.opensearch | default(false) | bool
+    - _ludus_install_malcolm_readiness.json.pcap_monitor | default(false) | bool
+    - _ludus_install_malcolm_readiness.json.logstash_lumberjack | default(false) | bool
+    - _ludus_install_malcolm_readiness.json.logstash_pipelines | default(false) | bool
+  retries: "{{ [(ludus_install_malcolm_readiness_timeout_seconds | int // 15), 1] | max }}"
+  delay: 10
+  no_log: true
+  diff: false

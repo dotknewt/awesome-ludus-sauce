@@ -1,0 +1,138 @@
+---
+- name: Inspect TLS leaf key and certificate
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ _ludus_install_malcolm_tls_key }}"
+    - "{{ _ludus_install_malcolm_tls_cert }}"
+  register: _ludus_install_malcolm_tls_leaf_stats
+  no_log: true
+  diff: false
+
+- name: Validate existing TLS leaf private key
+  community.crypto.openssl_privatekey_info:
+    path: "{{ _ludus_install_malcolm_tls_key }}"
+  register: _ludus_install_malcolm_tls_leaf_key_info
+  when: _ludus_install_malcolm_tls_leaf_stats.results[0].stat.exists
+  no_log: true
+  diff: false
+
+- name: Validate existing TLS leaf certificate
+  community.crypto.x509_certificate_info:
+    path: "{{ _ludus_install_malcolm_tls_cert }}"
+    valid_at:
+      now: "+0s"
+  register: _ludus_install_malcolm_tls_leaf_cert_info
+  when: _ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists
+  no_log: true
+  diff: false
+
+- name: Reject a mismatched established TLS leaf pair
+  ansible.builtin.assert:
+    that:
+      - _ludus_install_malcolm_tls_leaf_key_info.public_key == _ludus_install_malcolm_tls_leaf_cert_info.public_key
+    fail_msg: >-
+      Existing {{ _ludus_install_malcolm_tls_name }} TLS key and certificate
+      are mismatched and were left untouched.
+  when:
+    - _ludus_install_malcolm_tls_leaf_stats.results[0].stat.exists
+    - _ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists
+  no_log: true
+  diff: false
+
+- name: Verify established forwarding leaf against retained CA
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - verify
+      - -CAfile
+      - "{{ _ludus_install_malcolm_tls_ownca_cert }}"
+      - "{{ _ludus_install_malcolm_tls_cert }}"
+  args:
+    chdir: "{{ _ludus_install_malcolm_tls_cert | dirname }}"
+  register: _ludus_install_malcolm_tls_chain_verify
+  changed_when: false
+  failed_when: false
+  when:
+    - _ludus_install_malcolm_tls_provider == "ownca"
+    - _ludus_install_malcolm_tls_leaf_stats.results[0].stat.exists
+    - _ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists
+  no_log: true
+  diff: false
+
+- name: Classify recoverable TLS leaf state
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_tls_leaf_repair: >-
+      {{ (not _ludus_install_malcolm_tls_leaf_stats.results[0].stat.exists)
+         or (not _ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists)
+         or (_ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists
+             and not _ludus_install_malcolm_tls_leaf_cert_info.valid_at.now)
+         or (_ludus_install_malcolm_tls_provider == 'ownca'
+             and (_ludus_install_malcolm_tls_chain_verify.rc | default(1)) != 0) }}
+  no_log: true
+  diff: false
+
+- name: Generate only a missing TLS leaf private key
+  community.crypto.openssl_privatekey:
+    path: "{{ _ludus_install_malcolm_tls_key }}"
+    size: 2048
+    type: RSA
+    format: "{{ _ludus_install_malcolm_tls_key_format }}"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  when: not _ludus_install_malcolm_tls_leaf_stats.results[0].stat.exists
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Generate TLS leaf signing request
+  community.crypto.openssl_csr:
+    path: "{{ _ludus_install_malcolm_tls_csr }}"
+    privatekey_path: "{{ _ludus_install_malcolm_tls_key }}"
+    common_name: "{{ _ludus_install_malcolm_tls_common_name }}"
+    subject_alt_name: "{{ _ludus_install_malcolm_tls_subject_alt_name }}"
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage: "{{ _ludus_install_malcolm_tls_extended_key_usage }}"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  when: _ludus_install_malcolm_tls_leaf_repair
+  no_log: true
+  diff: false
+
+- name: Generate or repair TLS leaf certificate
+  community.crypto.x509_certificate:
+    path: "{{ _ludus_install_malcolm_tls_cert }}"
+    csr_path: "{{ _ludus_install_malcolm_tls_csr }}"
+    privatekey_path: "{{ _ludus_install_malcolm_tls_key }}"
+    provider: "{{ _ludus_install_malcolm_tls_provider }}"
+    ownca_path: "{{ _ludus_install_malcolm_tls_ownca_cert | default(omit) }}"
+    ownca_privatekey_path: "{{ _ludus_install_malcolm_tls_ownca_key | default(omit) }}"
+    selfsigned_not_after: +3650d
+    ownca_not_after: +3650d
+    force: "{{ _ludus_install_malcolm_tls_leaf_stats.results[1].stat.exists }}"
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0644"
+  when: _ludus_install_malcolm_tls_leaf_repair
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Require forwarding leaf to verify against retained CA
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - verify
+      - -CAfile
+      - "{{ _ludus_install_malcolm_tls_ownca_cert }}"
+      - "{{ _ludus_install_malcolm_tls_cert }}"
+  args:
+    chdir: "{{ _ludus_install_malcolm_tls_cert | dirname }}"
+  changed_when: false
+  when: _ludus_install_malcolm_tls_provider == "ownca"
+  no_log: true
+  diff: false

@@ -47,12 +47,12 @@
     name: docker
     state: present
 
-- name: Add the user 'debian' to primary group of 'docker'
+- name: Add the selected user to the Docker group
   ansible.builtin.user:
-    name: debian
-    comment: Debian User
-    uid: 1000
-    group: docker
+    name: "{{ ludus_install_docker_user }}"
+    groups:
+      - docker
+    append: true
 
 - name: Enable and start Docker service
   ansible.builtin.service:

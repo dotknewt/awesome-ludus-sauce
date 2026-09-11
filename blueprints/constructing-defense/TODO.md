@@ -7,6 +7,12 @@ optionally specify which config .xml to use from `files/`; default to `sysmoncon
 ansible/roles/role_gpo_deploy/tasks/main.yml is a single big script; "convert" script to ansible using 
 
 ## role_malcolm_install
-verify or fix installation script funtions on debian 13
-replace the docker installation with the `ludus_install_docker` role 
-evaluate converting https://github.com/Antonlovesdnb/ConstructingDefense/raw/refs/heads/main/malcolm_debian12_installer.sh to ansible native tasks
+
+- [x] Replace the remote installer with native, pinned, convergent Ansible tasks.
+- [x] Retain `ludus_install_docker` as the Docker dependency.
+- [ ] Run and record the VM acceptance checklist on Debian 12 and Debian 13.
+- [ ] Confirm real Docker Compose pull/start/health/readiness behavior, default DH generation, rerun convergence, reboot recovery, and PCAP ingestion on both releases.
+
+The local behavioral suite passes independently of a Ludus deployment, but live
+Debian 12/13 compatibility is not proven until every item in the role's
+`tests/VM_ACCEPTANCE.md` has been executed successfully.

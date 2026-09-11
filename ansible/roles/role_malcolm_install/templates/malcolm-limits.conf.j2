@@ -1,0 +1,7 @@
+# Malcolm file, memory, and process limits
+{{ ludus_install_malcolm_user }} soft nofile 65535
+{{ ludus_install_malcolm_user }} hard nofile 65535
+{{ ludus_install_malcolm_user }} soft memlock unlimited
+{{ ludus_install_malcolm_user }} hard memlock unlimited
+{{ ludus_install_malcolm_user }} soft nproc 262144
+{{ ludus_install_malcolm_user }} hard nproc 524288

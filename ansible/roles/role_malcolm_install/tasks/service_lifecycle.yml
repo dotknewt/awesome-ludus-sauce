@@ -1,0 +1,28 @@
+---
+- name: Inspect existing Malcolm systemd unit
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_systemd_unit_path }}"
+  register: _ludus_install_malcolm_service_unit_stat
+
+- name: Record whether Malcolm was previously installed as a service
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_service_preexisting: >-
+      {{ _ludus_install_malcolm_service_unit_stat.stat.exists }}
+
+- name: Install Malcolm systemd service unit
+  ansible.builtin.template:
+    src: "{{ _ludus_install_malcolm_service_template | default('malcolm.service.j2') }}"
+    dest: "{{ ludus_install_malcolm_systemd_unit_path }}"
+    owner: "{{ _ludus_install_malcolm_service_unit_owner | default('root') }}"
+    group: "{{ _ludus_install_malcolm_service_unit_group | default('root') }}"
+    mode: "0644"
+  notify: Restart Malcolm
+
+- name: Apply one change-driven Malcolm first start or rerun restart
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable Malcolm and ensure it remains started
+  ansible.builtin.systemd_service:
+    name: malcolm.service
+    enabled: true
+    state: started

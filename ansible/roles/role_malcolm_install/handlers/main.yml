@@ -1,0 +1,8 @@
+---
+- name: Restart Malcolm
+  ansible.builtin.systemd_service:
+    name: malcolm.service
+    state: >-
+      {{ (_ludus_install_malcolm_service_preexisting | default(false) | bool)
+         | ternary('restarted', 'started') }}
+    daemon_reload: true

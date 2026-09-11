@@ -1,0 +1,111 @@
+---
+- name: Resolve expected Malcolm services
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      - --profile
+      - malcolm
+      - config
+      - --services
+  args:
+    chdir: "{{ ludus_install_malcolm_install_dir }}"
+  register: _ludus_install_malcolm_expected_services
+  changed_when: false
+
+- name: Define aggregate Malcolm health probe
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_health_probe_code: |
+      import json
+      import subprocess
+      import sys
+      import time
+
+      budget = float(sys.argv[1])
+      interval = float(sys.argv[2])
+      compose_file = sys.argv[3]
+      expected = set(sys.argv[4:])
+      deadline = time.monotonic() + budget
+      compose = [
+          "docker", "compose", "--file", compose_file, "--profile", "malcolm",
+          "ps", "--all", "--format", "json",
+      ]
+      last_diagnostic = {"missing": sorted(expected), "containers": []}
+
+      while True:
+          remaining = deadline - time.monotonic()
+          if remaining <= 0:
+              break
+          try:
+              result = subprocess.run(
+                  compose,
+                  capture_output=True,
+                  text=True,
+                  timeout=max(0.1, min(5.0, remaining)),
+                  check=False,
+              )
+              raw = result.stdout.strip()
+              try:
+                  parsed = json.loads(raw or "[]")
+                  containers = parsed if isinstance(parsed, list) else [parsed]
+              except json.JSONDecodeError:
+                  containers = [json.loads(line) for line in raw.splitlines() if line.strip()]
+              by_service = {item.get("Service"): item for item in containers}
+              missing = sorted(expected - set(by_service))
+              nonconverged = {
+                  service: by_service[service]
+                  for service in sorted(expected & set(by_service))
+                  if by_service[service].get("State") != "running"
+                  or by_service[service].get("Health", "") not in ("", "healthy")
+              }
+              last_diagnostic = {
+                  "missing": missing,
+                  "nonconverged": nonconverged,
+                  "containers": containers,
+                  "compose_rc": result.returncode,
+                  "compose_stderr": result.stderr.strip(),
+              }
+              if result.returncode == 0 and not missing and not nonconverged:
+                  print(json.dumps(containers, sort_keys=True))
+                  sys.exit(0)
+          except (subprocess.TimeoutExpired, json.JSONDecodeError) as error:
+              last_diagnostic = {
+                  "missing": sorted(expected),
+                  "probe_error": str(error),
+              }
+
+          remaining = deadline - time.monotonic()
+          if remaining <= 0:
+              break
+          time.sleep(min(interval, remaining))
+
+      print(
+          "Malcolm container convergence exhausted the shared readiness budget: "
+          + json.dumps(last_diagnostic, sort_keys=True),
+          file=sys.stderr,
+      )
+      sys.exit(1)
+
+- name: Wait for all Malcolm containers within the shared readiness budget
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          '/usr/bin/timeout',
+          '--signal=TERM',
+          '--kill-after=2s',
+          ((ludus_install_malcolm_readiness_timeout_seconds | int) + 2) | string,
+          ludus_install_malcolm_venv_dir + '/bin/python',
+          '-c',
+          _ludus_install_malcolm_health_probe_code,
+          ludus_install_malcolm_readiness_timeout_seconds | string,
+          ludus_install_malcolm_health_poll_interval_seconds | string,
+          ludus_install_malcolm_install_dir + '/docker-compose.yml'
+        ] + _ludus_install_malcolm_expected_services.stdout_lines
+      }}
+  args:
+    chdir: "{{ ludus_install_malcolm_install_dir }}"
+  register: _ludus_install_malcolm_health_probe
+  changed_when: false

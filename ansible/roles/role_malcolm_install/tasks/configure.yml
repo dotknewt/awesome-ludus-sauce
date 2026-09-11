@@ -1,0 +1,136 @@
+---
+- name: Require verified Malcolm source before configuration
+  ansible.builtin.assert:
+    that: _ludus_install_malcolm_source_verified | bool
+    fail_msg: >-
+      Malcolm source was not verified. Configuration is refused until preflight
+      and pinned source installation complete successfully.
+
+- name: Find pinned release environment examples
+  ansible.builtin.find:
+    paths: "{{ ludus_install_malcolm_install_dir }}/config"
+    patterns: "*.env.example"
+    file_type: file
+  register: _ludus_install_malcolm_env_examples
+
+- name: Classify legacy runtime before environment initialization
+  ansible.builtin.include_tasks: runtime-state.yml
+
+- name: Inspect authoritative backend secret files before initialization
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/config/{{ item }}"
+  loop:
+    - netbox-secret.env
+    - postgres.env
+    - valkey.env
+    - arkime-secret.env
+  register: _ludus_install_malcolm_backend_file_stats
+  no_log: true
+  diff: false
+
+- name: Inspect durable backend initialization evidence
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/.ludus-initialization/config__{{ item }}"
+  loop:
+    - netbox-secret.env
+    - postgres.env
+    - valkey.env
+    - arkime-secret.env
+  register: _ludus_install_malcolm_backend_evidence_stats
+  no_log: true
+  diff: false
+
+- name: Reject backend secret loss from initialized or legacy runtime
+  ansible.builtin.assert:
+    that:
+      - >-
+        _ludus_install_malcolm_backend_file_stats.results[item].stat.exists
+        or (not _ludus_install_malcolm_backend_evidence_stats.results[item].stat.exists
+            and not _ludus_install_malcolm_legacy_runtime_established)
+    fail_msg: >-
+      An authoritative backend secret file is missing from initialized or legacy
+      established runtime. Restore
+      config/{{ _ludus_install_malcolm_backend_file_stats.results[item].item }}
+      from backup; the role will not recreate it from release examples or
+      silently rotate credentials.
+  loop: "{{ range(0, _ludus_install_malcolm_backend_file_stats.results | length) | list }}"
+  loop_control:
+    label: "{{ _ludus_install_malcolm_backend_file_stats.results[item].item }}"
+  no_log: true
+  diff: false
+
+- name: Initialize missing environment files from pinned examples
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ item.path | regex_replace('[.]example$', '') }}"
+    remote_src: true
+    force: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  loop: "{{ _ludus_install_malcolm_env_examples.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  notify: Restart Malcolm
+  no_log: true
+  diff: false
+
+- name: Apply managed Malcolm environment values
+  ansible.builtin.lineinfile:
+    path: "{{ ludus_install_malcolm_install_dir }}/config/{{ item.file }}"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: false
+    owner: "{{ _ludus_install_malcolm_uid }}"
+    group: "{{ _ludus_install_malcolm_gid }}"
+    mode: "0600"
+  loop:
+    - {file: process.env, key: PUID, value: "{{ _ludus_install_malcolm_uid }}"}
+    - {file: process.env, key: PGID, value: "{{ _ludus_install_malcolm_gid }}"}
+    - {file: process.env, key: MALCOLM_PROFILE, value: malcolm}
+    - {file: process.env, key: MALCOLM_CONTAINER_RUNTIME, value: docker}
+    - {file: auth-common.env, key: NGINX_AUTH_MODE, value: basic}
+    - {file: pcap-capture.env, key: PCAP_ENABLE_NETSNIFF, value: "{{ ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false') }}"}
+    - {file: pcap-capture.env, key: PCAP_ENABLE_TCPDUMP, value: "false"}
+    - {file: pcap-capture.env, key: PCAP_IFACE, value: "{{ _ludus_install_malcolm_capture_interface if ludus_install_malcolm_capture_enabled | bool else 'lo' }}"}
+    - {file: pcap-capture.env, key: PCAP_FILTER, value: "{{ ludus_install_malcolm_capture_filter }}"}
+    - {file: pcap-capture.env, key: PCAP_ROTATE_MEGABYTES, value: "{{ ludus_install_malcolm_capture_rotation_megabytes }}"}
+    - {file: pcap-capture.env, key: PCAP_ROTATE_MINUTES, value: "{{ ludus_install_malcolm_capture_rotation_minutes }}"}
+    - {file: arkime-live.env, key: ARKIME_LIVE_CAPTURE, value: "{{ ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false') }}"}
+    - {file: zeek-live.env, key: ZEEK_LIVE_CAPTURE, value: "{{ ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false') }}"}
+    - {file: suricata-live.env, key: SURICATA_LIVE_CAPTURE, value: "{{ ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false') }}"}
+  loop_control:
+    label: "{{ item.file }}:{{ item.key }}"
+  notify: Restart Malcolm
+
+- name: Read managed Malcolm configuration files
+  ansible.builtin.slurp:
+    src: "{{ ludus_install_malcolm_install_dir }}/config/{{ item }}"
+  loop:
+    - process.env
+    - auth-common.env
+    - pcap-capture.env
+    - arkime-live.env
+    - zeek-live.env
+    - suricata-live.env
+  register: _ludus_install_malcolm_managed_env
+  changed_when: false
+
+- name: Validate managed Malcolm configuration postconditions
+  ansible.builtin.assert:
+    that:
+      - "('PUID=' ~ (_ludus_install_malcolm_uid | string)) in (_ludus_install_malcolm_managed_env.results[0].content | b64decode).splitlines()"
+      - "('PGID=' ~ (_ludus_install_malcolm_gid | string)) in (_ludus_install_malcolm_managed_env.results[0].content | b64decode).splitlines()"
+      - "'MALCOLM_PROFILE=malcolm' in (_ludus_install_malcolm_managed_env.results[0].content | b64decode).splitlines()"
+      - "'MALCOLM_CONTAINER_RUNTIME=docker' in (_ludus_install_malcolm_managed_env.results[0].content | b64decode).splitlines()"
+      - "'NGINX_AUTH_MODE=basic' in (_ludus_install_malcolm_managed_env.results[1].content | b64decode).splitlines()"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_ENABLE_NETSNIFF=(.*)$')) == [ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false')]"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_ENABLE_TCPDUMP=(.*)$')) == ['false']"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_IFACE=(.*)$')) == [_ludus_install_malcolm_capture_interface if ludus_install_malcolm_capture_enabled | bool else 'lo']"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_FILTER=(.*)$')) == [ludus_install_malcolm_capture_filter | string]"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_ROTATE_MEGABYTES=(.*)$')) == [ludus_install_malcolm_capture_rotation_megabytes | string]"
+      - "((_ludus_install_malcolm_managed_env.results[2].content | b64decode) | regex_findall('(?m)^PCAP_ROTATE_MINUTES=(.*)$')) == [ludus_install_malcolm_capture_rotation_minutes | string]"
+      - "((_ludus_install_malcolm_managed_env.results[3].content | b64decode) | regex_findall('(?m)^ARKIME_LIVE_CAPTURE=(.*)$')) == [ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false')]"
+      - "((_ludus_install_malcolm_managed_env.results[4].content | b64decode) | regex_findall('(?m)^ZEEK_LIVE_CAPTURE=(.*)$')) == [ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false')]"
+      - "((_ludus_install_malcolm_managed_env.results[5].content | b64decode) | regex_findall('(?m)^SURICATA_LIVE_CAPTURE=(.*)$')) == [ludus_install_malcolm_capture_enabled | bool | ternary('true', 'false')]"
+    fail_msg: Malcolm environment generation did not reach the requested semantic state.

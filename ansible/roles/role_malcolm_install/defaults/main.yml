@@ -1,4 +1,27 @@
 ---
-# Role variables should all be prefaced with the name of the role to avoid
-# name conflicts with other roles
-ludus_thing_variable1: true
+ludus_install_malcolm_user: debian
+ludus_install_malcolm_install_dir: /home/debian/Malcolm
+ludus_install_malcolm_version: v26.08.0
+ludus_install_malcolm_commit: 07bbccdfe2732fb5c5147070cdfca2857b85bacc
+ludus_install_malcolm_venv_dir: "{{ ludus_install_malcolm_install_dir }}/.venv"
+
+ludus_install_malcolm_admin_username: condef
+ludus_install_malcolm_admin_password: ""
+
+ludus_install_malcolm_capture_enabled: false
+ludus_install_malcolm_capture_interface: ""
+ludus_install_malcolm_capture_filter: ""
+ludus_install_malcolm_capture_rotation_megabytes: 4096
+ludus_install_malcolm_capture_rotation_minutes: 10
+
+ludus_install_malcolm_image_pull_timeout_seconds: 3600
+ludus_install_malcolm_start_timeout_seconds: 1800
+ludus_install_malcolm_stop_timeout_seconds: 600
+ludus_install_malcolm_readiness_timeout_seconds: 1800
+ludus_install_malcolm_health_poll_interval_seconds: 10
+ludus_install_malcolm_tls_dhparam_size: 2048
+ludus_install_malcolm_systemd_unit_path: /etc/systemd/system/malcolm.service
+
+# The upstream value of 5 can be harmful on unreliable networks. Set this to
+# an integer only when the deployment explicitly accepts that tradeoff.
+ludus_install_malcolm_tcp_retries2: null
