@@ -11,13 +11,6 @@
       - python3-debian
     state: present
 
-#- name: Add an Apt signing key
-#  ansible.builtin.deb822_repository:
-#    name: docker
-#    types: deb
-#    signed_by: https://download.docker.com/linux/debian/gpg
-#    state: present
-
 - name: Configure Docker apt repository
   ansible.builtin.deb822_repository:
     name: docker
