@@ -163,7 +163,7 @@ ludus:
         - libapache2-mod-php
     roles:
       - role_linux_logging
-      - role_minikube
+      - ludus_install_minikube
       - role_splunk_collector_linuxv
       - name: role_k8s_telemetry_collection
         depends_on:
