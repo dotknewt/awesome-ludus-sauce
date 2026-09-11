@@ -1,0 +1,35 @@
+---
+- name: Download Minikube
+  ansible.builtin.get_url:
+    url: "https://storage.googleapis.com/minikube/releases/latest/minikube_\
+      latest_amd64.deb"
+    dest: /tmp/minikube_latest_amd64.deb
+    mode: "0644"
+    validate_certs: false
+
+- name: Install Minikube
+  ansible.builtin.apt:
+    deb: /tmp/minikube_latest_amd64.deb
+
+- name: Get latest kubectl version
+  ansible.builtin.uri:
+    url: https://dl.k8s.io/release/stable.txt
+    return_content: true
+  register: ludus_install_minikube_kubectl_version
+
+- name: Download kubectl
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/{{ \
+      ludus_install_minikube_kubectl_version.content | trim \
+      }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download and install Helm # noqa command-instead-of-shell
+  # Preserve Helm's upstream installer command and shell pipeline exactly.
+  ansible.builtin.shell: # noqa risky-shell-pipe command-instead-of-module
+    cmd: "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/\
+      get-helm-3 | bash"
+    creates: /usr/local/bin/helm
