@@ -15,11 +15,6 @@
     malcolm_service_status.status.LoadState != 'loaded'
     or malcolm_service_status.status.UnitFileState != 'enabled'
   block:
-    - name: Run docker fix
-      ansible.builtin.file:
-        path: /etc/apt/sources.list.d/docker.list
-        state: absent
-
     - name: Update packages
       ansible.builtin.apt:
         update_cache: true
@@ -47,45 +42,6 @@
           - python3-yaml
           - python3-requests
         state: present
-
-    - name: Add an Apt signing key
-      ansible.builtin.apt_key:
-        url: https://download.docker.com/linux/debian/gpg
-        keyring: /etc/apt/keyrings/docker.gpg
-        state: present
-
-    - name: Add Docker Repo
-      ansible.builtin.apt_repository:
-        repo: "deb [arch={{ ansible_architecture | regex_replace('x86_64', 'amd64') | regex_replace('aarch64', 'arm64') }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
-        filename: docker
-        state: present
-
-    - name: Install Docker Packages
-      ansible.builtin.apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-        state: present
-        update_cache: true
-
-    - name: Create Docker Group
-      ansible.builtin.group:
-        name: docker
-        state: present
-
-    - name: Add the user 'debian' to primary group of 'docker'
-      ansible.builtin.user:
-        name: debian
-        comment: Debian User
-        uid: 1000
-        groups: docker
-        append: true
-
-    - name: Reset connection to apply new group memberships
-      meta: reset_connection
 
     - name: Download Malcolm Install Script
       ansible.builtin.get_url:

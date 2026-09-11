@@ -1,4 +1,3 @@
 ---
-dependencies: []
-
-collections: [] # Add any collections needed here
+dependencies:
+  - role: ludus_install_docker

@@ -24,7 +24,9 @@ Available variables are listed below, along with default values (see `defaults/m
 
 ## Dependencies
 
-None.
+This role depends on `ludus_install_docker`, which installs Docker and the
+`curl` executable used by Helm's upstream installer. Both local roles must be
+installed or otherwise discoverable through Ansible's configured role paths.
 
 ## Example Playbook
 
