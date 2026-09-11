@@ -135,10 +135,10 @@ ludus:
     cpus: 4
     linux:
       packages:
-        - vim  # optional
+        - vim # optional
         - curl
         - ca-certificates
-        - bash-completion  # optional
+        - bash-completion # optional
         - git
         - make
         - pipx
@@ -153,10 +153,10 @@ ludus:
     cpus: 6
     linux:
       packages:
-        - vim  # optional
+        - vim # optional
         - curl
         - ca-certificates
-        - bash-completion  # optional
+        - bash-completion # optional
         - ncat
         - apache2
         - php
@@ -173,7 +173,7 @@ ludus:
       k8s_cluster_name: "minkube"
       k8s_splunk_index: "kube"
       ludus_k8s_splunk_hec_token: "b448817b-e664-4fce-93fa-79d0c90ba57"
-      ludus_k8s_splunk_server_ip: "10.{{ range_second_octet }}.10.11"  # Calculate Splunk server IP based on VLAN and octet
+      ludus_k8s_splunk_server_ip: "10.{{ range_second_octet }}.10.11" # Calculate Splunk server IP based on VLAN and octet
 
   - vm_name: "pcap"
     hostname: "pcap"
@@ -184,7 +184,7 @@ ludus:
     cpus: 8
     linux: true
     roles:
-      - role_malcolm_install
+      - ludus_install_malcolm
     role_vars:
       # Existing Constructing Defense lab credential; replace outside this lab.
       ludus_install_malcolm_admin_username: condef
