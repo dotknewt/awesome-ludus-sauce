@@ -1,0 +1,275 @@
+---
+- name: Configure the single-node Ludus range bridge on the host
+  become: true
+  delegate_to: localhost
+  run_once: true
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  block:
+    - name: Require Ludus range allocation metadata
+      ansible.builtin.assert:
+        that:
+          - range_second_octet is defined
+        fail_msg: >-
+          range_second_octet must be supplied by Ludus so the role can derive
+          the range bridge.
+
+    - name: Validate Ludus range allocation metadata before conversion
+      ansible.builtin.assert:
+        that:
+          - range_second_octet is not boolean
+          - >-
+            (range_second_octet | string)
+            is match('^(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-4])$')
+        fail_msg: >-
+          range_second_octet must be a decimal integer from 1 through 254;
+          textual range_id values are not bridge suffixes.
+
+    - name: Reject non-boolean cluster metadata
+      ansible.builtin.assert:
+        that:
+          - ludus_cluster_mode is not defined or ludus_cluster_mode is boolean
+        fail_msg: ludus_cluster_mode must be a boolean when supplied by Ludus.
+
+    - name: Reject Ludus cluster mode
+      ansible.builtin.assert:
+        that:
+          - not (ludus_cluster_mode | default(false))
+        fail_msg: >-
+          ludus_configure_bridge supports only a single-node Ludus host;
+          cluster mode uses Proxmox SDN VNets rather than local vmbr bridges.
+
+    - name: Validate requested bridge behavior
+      ansible.builtin.assert:
+        that:
+          - ludus_configure_bridge_promiscuous is boolean
+          - ludus_configure_bridge_ageing_time is integer
+          - ludus_configure_bridge_ageing_time is not boolean
+          - ludus_configure_bridge_ageing_time >= 0
+          - ludus_configure_bridge_ageing_time <= 4294967295
+        fail_msg: >-
+          ludus_configure_bridge_promiscuous must be boolean and
+          ludus_configure_bridge_ageing_time must be an integer number of
+          centiseconds from 0 through 4294967295.
+
+    - name: Derive the Ludus range bridge after validation
+      ansible.builtin.set_fact:
+        _ludus_configure_bridge_name: >-
+          vmbr{{ 1000 + (range_second_octet | int) }}
+        _ludus_configure_bridge_desired_ageing_centiseconds: >-
+          {{ ludus_configure_bridge_ageing_time | int }}
+        _ludus_configure_bridge_desired_promisc: >-
+          {{ 'on' if ludus_configure_bridge_promiscuous else 'off' }}
+
+    - name: Inspect effective host privileges
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_id_command }}"
+          - -u
+      register: _ludus_configure_bridge_effective_uid
+      changed_when: false
+
+    - name: Require root privileges on the Ludus host
+      ansible.builtin.assert:
+        that:
+          - (_ludus_configure_bridge_effective_uid.stdout | trim) == '0'
+        fail_msg: >-
+          ludus_configure_bridge requires successful root escalation on the
+          local Ludus/Proxmox host.
+
+    - name: Inspect the host ip executable
+      ansible.builtin.stat:
+        path: "{{ _ludus_configure_bridge_ip_command }}"
+      register: _ludus_configure_bridge_ip_stat
+
+    - name: Require an executable host ip command
+      ansible.builtin.assert:
+        that:
+          - _ludus_configure_bridge_ip_stat.stat.exists
+          - _ludus_configure_bridge_ip_stat.stat.isreg
+          - _ludus_configure_bridge_ip_stat.stat.executable
+        fail_msg: >-
+          The Ludus host requires an executable ip command at
+          {{ _ludus_configure_bridge_ip_command }}.
+
+    - name: Inspect the host ifquery executable
+      ansible.builtin.stat:
+        path: "{{ _ludus_configure_bridge_ifquery_command }}"
+      register: _ludus_configure_bridge_ifquery_stat
+
+    - name: Require an executable host ifquery command
+      ansible.builtin.assert:
+        that:
+          - _ludus_configure_bridge_ifquery_stat.stat.exists
+          - _ludus_configure_bridge_ifquery_stat.stat.isreg
+          - _ludus_configure_bridge_ifquery_stat.stat.executable
+        fail_msg: >-
+          The Ludus host requires ifupdown2's executable ifquery command at
+          {{ _ludus_configure_bridge_ifquery_command }}.
+
+    - name: Verify the host uses ifupdown2
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_ifquery_command }}"
+          - --version
+      register: _ludus_configure_bridge_ifquery_version
+      changed_when: false
+
+    - name: Require ifupdown2 on the host
+      ansible.builtin.assert:
+        that:
+          - >-
+            'ifupdown2' in
+            ((_ludus_configure_bridge_ifquery_version.stdout
+            ~ _ludus_configure_bridge_ifquery_version.stderr) | lower)
+        fail_msg: The host ifquery command must be provided by ifupdown2.
+
+    - name: Inspect the ifupdown2 configuration
+      ansible.builtin.slurp:
+        src: "{{ _ludus_configure_bridge_ifupdown2_config_path }}"
+      register: _ludus_configure_bridge_ifupdown2_config
+
+    - name: Require ifupdown2 lifecycle hook execution
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((_ludus_configure_bridge_ifupdown2_config.content | b64decode)
+            | regex_search(
+            '(?m)^\s*addon_scripts_support\s*=\s*1\s*(?:#.*)?$'))
+            is not none
+        fail_msg: >-
+          ifupdown2 must set addon_scripts_support=1 so /etc/network/if-up.d
+          hooks execute during the interface post-up lifecycle.
+
+    - name: Inspect the if-up hook directory
+      ansible.builtin.stat:
+        path: "{{ _ludus_configure_bridge_hook_dir }}"
+      register: _ludus_configure_bridge_hook_dir_stat
+
+    - name: Require the if-up hook directory
+      ansible.builtin.assert:
+        that:
+          - _ludus_configure_bridge_hook_dir_stat.stat.exists
+          - _ludus_configure_bridge_hook_dir_stat.stat.isdir
+        fail_msg: >-
+          The ifupdown2 hook directory must exist at
+          {{ _ludus_configure_bridge_hook_dir }}.
+
+    - name: Inspect the derived range interface
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_ip_command }}"
+          - -d
+          - -j
+          - link
+          - show
+          - dev
+          - "{{ _ludus_configure_bridge_name }}"
+      register: _ludus_configure_bridge_initial_link
+      changed_when: false
+
+    - name: Decode the derived range interface state
+      ansible.builtin.set_fact:
+        _ludus_configure_bridge_initial_state: >-
+          {{
+            (_ludus_configure_bridge_initial_link.stdout | from_json) | first
+          }}
+
+    - name: Require the derived interface to be a Linux bridge
+      ansible.builtin.assert:
+        that:
+          - >-
+            _ludus_configure_bridge_initial_state.ifname
+            == _ludus_configure_bridge_name
+          - >-
+            _ludus_configure_bridge_initial_state.linkinfo.info_kind
+            == 'bridge'
+          - >-
+            _ludus_configure_bridge_initial_state.linkinfo.info_data.ageing_time
+            is defined
+          - _ludus_configure_bridge_initial_state.flags is defined
+        fail_msg: >-
+          Derived interface {{ _ludus_configure_bridge_name }} must already
+          exist as a Linux bridge before this role may mutate it.
+
+    - name: Install the persistent range bridge hook
+      ansible.builtin.template:
+        src: bridge-if-up.sh.j2
+        dest: >-
+          {{
+            _ludus_configure_bridge_hook_dir
+            ~ '/ludus-configure-bridge-'
+            ~ _ludus_configure_bridge_name
+          }}
+        owner: "{{ _ludus_configure_bridge_hook_owner }}"
+        group: "{{ _ludus_configure_bridge_hook_group }}"
+        mode: "0755"
+
+    - name: Correct range bridge ageing time on drift
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_ip_command }}"
+          - link
+          - set
+          - dev
+          - "{{ _ludus_configure_bridge_name }}"
+          - type
+          - bridge
+          - ageing_time
+          - "{{ ludus_configure_bridge_ageing_time | string }}"
+      when: >-
+        (_ludus_configure_bridge_initial_state.linkinfo.info_data.ageing_time
+        | int)
+        != (_ludus_configure_bridge_desired_ageing_centiseconds | int)
+      changed_when: true
+
+    - name: Correct range bridge promiscuous mode on drift
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_ip_command }}"
+          - link
+          - set
+          - dev
+          - "{{ _ludus_configure_bridge_name }}"
+          - promisc
+          - "{{ _ludus_configure_bridge_desired_promisc }}"
+      when: >-
+        ('PROMISC' in _ludus_configure_bridge_initial_state.flags)
+        != ludus_configure_bridge_promiscuous
+      changed_when: true
+
+    - name: Inspect the corrected range bridge
+      ansible.builtin.command:
+        argv:
+          - "{{ _ludus_configure_bridge_ip_command }}"
+          - -d
+          - -j
+          - link
+          - show
+          - dev
+          - "{{ _ludus_configure_bridge_name }}"
+      register: _ludus_configure_bridge_final_link
+      changed_when: false
+
+    - name: Decode the corrected range bridge state
+      ansible.builtin.set_fact:
+        _ludus_configure_bridge_final_state: >-
+          {{
+            (_ludus_configure_bridge_final_link.stdout | from_json) | first
+          }}
+
+    - name: Verify the requested range bridge state
+      ansible.builtin.assert:
+        that:
+          - _ludus_configure_bridge_final_state.linkinfo.info_kind == 'bridge'
+          - >-
+            (_ludus_configure_bridge_final_state.linkinfo.info_data.ageing_time
+            | int)
+            == (_ludus_configure_bridge_desired_ageing_centiseconds | int)
+          - >-
+            ('PROMISC' in _ludus_configure_bridge_final_state.flags)
+            == ludus_configure_bridge_promiscuous
+        fail_msg: >-
+          Range bridge {{ _ludus_configure_bridge_name }} did not converge to
+          ageing_time={{ ludus_configure_bridge_ageing_time }} centiseconds and
+          promiscuous={{ ludus_configure_bridge_promiscuous }}.

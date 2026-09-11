@@ -1,0 +1,3 @@
+---
+ludus_configure_bridge_promiscuous: true
+ludus_configure_bridge_ageing_time: 0

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+if [ "${IFACE:-}" != "{{ _ludus_configure_bridge_name }}" ]; then
+    exit 0
+fi
+
+{{ _ludus_configure_bridge_ip_command | quote }} link set dev {{ _ludus_configure_bridge_name | quote }} type bridge ageing_time {{ ludus_configure_bridge_ageing_time | int }}
+{{ _ludus_configure_bridge_ip_command | quote }} link set dev {{ _ludus_configure_bridge_name | quote }} promisc {{ _ludus_configure_bridge_desired_promisc }}

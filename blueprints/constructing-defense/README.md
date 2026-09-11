@@ -41,6 +41,25 @@ graph TB
 
 All templates are stock Ludus built-ins — this source ships no Packer templates.
 
+## Malcolm packet capture bridge
+
+The `pcap` VM runs `ludus_configure_bridge` before `ludus_install_malcolm`.
+On a single-node Ludus host, the bridge role automatically derives the current
+range bridge as `vmbr{{ 1000 + range_second_octet }}`; no bridge name is
+hardcoded in the automated path. It enables promiscuous mode and sets the
+bridge ageing time to `0`, then installs an ifupdown2 interface-up hook that
+reapplies both settings whenever that range bridge comes up.
+
+The role changes the bridge on the Ludus/Proxmox host through one local,
+privilege-escalated execution even though it is assigned to `pcap`. It supports
+single-node Ludus only and does not create bridges, restart networking, or
+configure individual VLANs independently.
+
+Removing the role or deleting this blueprint's range does not remove its
+persistent host hook. Before deleting the range or reusing its numeric
+allocation, follow the bridge role's exact
+[retirement procedure](../../ansible/roles/ludus_configure_bridge/README.md#retiring-a-range-or-this-role).
+
 ## Credentials
 
 - Domain admin: `condef.internal\domainadmin` / `Temp1234!!`
