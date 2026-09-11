@@ -1,13 +1,19 @@
 [Unit]
-Description=Run Malcolm start script at startup
-After=network.target
+Description=Malcolm network traffic analysis stack
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
 
 [Service]
-ExecStart=/home/debian/Malcolm/scripts/start
-ExecStop=/home/debian/Malcolm/scripts/stop
-ExecReload=/home/debian/Malcolm/scripts/restart
-Restart=on-failure
-User=debian
+Type=oneshot
+RemainAfterExit=yes
+User={{ ludus_install_malcolm_user }}
+Group={{ _ludus_install_malcolm_gid }}
+WorkingDirectory={{ ludus_install_malcolm_install_dir }}
+ExecStart=/usr/bin/timeout --signal=TERM --kill-after=30s {{ ludus_install_malcolm_start_timeout_seconds }} {{ ludus_install_malcolm_venv_dir }}/bin/python {{ ludus_install_malcolm_install_dir }}/scripts/control.py --start true --quiet true --file {{ ludus_install_malcolm_install_dir }}/docker-compose.yml --environment-dir {{ ludus_install_malcolm_install_dir }}/config --profile malcolm --runtime docker
+ExecStop=/usr/bin/timeout --signal=TERM --kill-after=30s {{ ludus_install_malcolm_stop_timeout_seconds }} {{ ludus_install_malcolm_venv_dir }}/bin/python {{ ludus_install_malcolm_install_dir }}/scripts/control.py --stop true --quiet true --file {{ ludus_install_malcolm_install_dir }}/docker-compose.yml --environment-dir {{ ludus_install_malcolm_install_dir }}/config --profile malcolm --runtime docker
+TimeoutStartSec={{ ludus_install_malcolm_start_timeout_seconds | int + 45 }}
+TimeoutStopSec={{ ludus_install_malcolm_stop_timeout_seconds | int + 45 }}
 
 [Install]
 WantedBy=multi-user.target

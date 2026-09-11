@@ -1,0 +1,8 @@
+---
+- name: Syntax-check the complete Malcolm role
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: role_malcolm_install
+  vars:
+    ludus_install_malcolm_admin_password: syntax-check-only

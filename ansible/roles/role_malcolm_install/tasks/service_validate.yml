@@ -1,0 +1,38 @@
+---
+- name: Validate rendered Malcolm Compose configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      - --profile
+      - malcolm
+      - config
+  args:
+    chdir: "{{ ludus_install_malcolm_install_dir }}"
+  changed_when: false
+  no_log: true
+  diff: false
+
+- name: Read pinned Malcolm Compose source
+  ansible.builtin.slurp:
+    src: "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+  register: _ludus_install_malcolm_compose_source
+  changed_when: false
+
+- name: Record Malcolm Compose image references
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_compose_images: >-
+      {{ ((_ludus_install_malcolm_compose_source.content | b64decode | from_yaml).services
+          | dict2items | selectattr('value.image', 'defined')
+          | map(attribute='value.image') | unique | list) }}
+
+- name: Require only pinned Malcolm image tags
+  ansible.builtin.assert:
+    that:
+      - _ludus_install_malcolm_compose_images | length >= 23
+      - _ludus_install_malcolm_compose_images | reject('match', '^ghcr[.]io/idaholab/malcolm/.+:26[.]08[.]0$') | list | length == 0
+    fail_msg: >-
+      Malcolm Compose must reference the complete pinned 26.08.0 image set;
+      unpinned, missing, or unexpected image tags were detected.

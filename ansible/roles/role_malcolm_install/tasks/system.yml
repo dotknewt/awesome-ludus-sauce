@@ -1,0 +1,36 @@
+---
+- name: Configure Malcolm kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-malcolm.conf
+    reload: true
+  loop:
+    - {name: fs.file-max, value: "2097152"}
+    - {name: fs.inotify.max_user_watches, value: "131072"}
+    - {name: fs.inotify.max_queued_events, value: "131072"}
+    - {name: fs.inotify.max_user_instances, value: "512"}
+    - {name: vm.max_map_count, value: "524288"}
+    - {name: vm.swappiness, value: "1"}
+    - {name: vm.dirty_background_ratio, value: "5"}
+    - {name: vm.dirty_ratio, value: "10"}
+    - {name: vm.overcommit_memory, value: "1"}
+    - {name: net.core.somaxconn, value: "65535"}
+
+- name: Configure explicitly requested TCP retry limit
+  ansible.posix.sysctl:
+    name: net.ipv4.tcp_retries2
+    value: "{{ ludus_install_malcolm_tcp_retries2 | string }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-malcolm.conf
+    reload: true
+  when: ludus_install_malcolm_tcp_retries2 is not none
+
+- name: Configure Malcolm account resource limits
+  ansible.builtin.template:
+    src: malcolm-limits.conf.j2
+    dest: /etc/security/limits.d/99-malcolm.conf
+    owner: root
+    group: root
+    mode: "0644"

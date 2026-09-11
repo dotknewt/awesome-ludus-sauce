@@ -1,131 +1,21 @@
-- name: Check malcolm.service
-  ansible.builtin.systemd_service:
-    name: malcolm.service
-  register: malcolm_service_status
-  ignore_errors: true
+---
+- name: Run Malcolm preflight checks
+  ansible.builtin.include_tasks: preflight.yml
 
-- name: DEBUG MALCOLM SERVICE CHECK
-  ansible.builtin.debug:
-    msg: "{{ malcolm_service_status }}"
-    # malcolm_service_status.status.UnitFileState != 'enabled'
-    # malcolm_service_status.status.ActiveState == 'inactive'
+- name: Install Malcolm host packages
+  ansible.builtin.include_tasks: packages.yml
 
-- name: Run complete Malcolm installation # when service doesn't exist or isn't enabled
-  when: |
-    malcolm_service_status.status.LoadState != 'loaded'
-    or malcolm_service_status.status.UnitFileState != 'enabled'
-  block:
-    - name: Update packages
-      ansible.builtin.apt:
-        update_cache: true
+- name: Apply Malcolm host tuning
+  ansible.builtin.include_tasks: system.yml
 
-    - name: Install Dependencies
-      ansible.builtin.apt:
-        name:
-          - ca-certificates
-          - curl
-          - gnupg
-          - wget
-          - apache2-utils
-          - cron
-          - dialog
-          - git
-          - jq
-          - make
-          - openssl
-          - tmux
-          - xz-utils
-          - lsb-release
-          - python3
-          - python3-pip
-          - python3-setuptools
-          - python3-yaml
-          - python3-requests
-        state: present
+- name: Install pinned Malcolm source
+  ansible.builtin.include_tasks: install.yml
 
-    - name: Download Malcolm Install Script
-      ansible.builtin.get_url:
-        url: "https://raw.githubusercontent.com/Antonlovesdnb/ConstructingDefense/refs/heads/main/malcolm_debian12_installer.sh"
-        dest: /home/debian/malcolm_debian12_installer.sh
-        mode: "0755"
-        validate_certs: false
+- name: Configure Malcolm
+  ansible.builtin.include_tasks: configure.yml
 
-    - name: Check if script exists and is executable
-      ansible.builtin.stat:
-        path: /home/debian/malcolm_debian12_installer.sh
-      register: script_stat
+- name: Configure Malcolm authentication
+  ansible.builtin.include_tasks: authentication.yml
 
-    - name: Show script status
-      debug:
-        var: script_stat
-
-    - name: Test script syntax
-      ansible.builtin.shell:
-        cmd: bash -n /home/debian/malcolm_debian12_installer.sh
-      become: true
-      register: syntax_check
-      ignore_errors: true
-
-    - name: Show syntax check result
-      debug:
-        var: syntax_check
-
-    - name: Run Malcolm Install Script, this is pulling containers and will take a while
-      ansible.builtin.shell:
-        cmd: bash -x /home/debian/malcolm_debian12_installer.sh 2>&1 | tee /tmp/malcolm_install.log
-        chdir: /home/debian
-      become: true
-      async: 3600 # 1 hour timeout
-      poll: 15 # check every 15 seconds
-      register: script_result
-
-    - name: Show final script output
-      debug:
-        var: script_result.stdout_lines
-
-    - name: Check if Malcolm directory exists in /root
-      ansible.builtin.stat:
-        path: /root/Malcolm
-      register: malcolm_root_dir
-
-    - name: Move Malcolm directory if it exists
-      ansible.builtin.command:
-        cmd: mv /root/Malcolm /home/debian/Malcolm
-        removes: /root/Malcolm
-      become: true
-      when: malcolm_root_dir.stat.exists
-
-    - name: Fix ownership of Malcolm directory
-      ansible.builtin.file:
-        path: /home/debian/Malcolm
-        owner: debian
-        group: debian
-        recurse: yes
-      become: true
-      when: malcolm_root_dir.stat.exists
-
-    - name: Run Malcolm Install Script again as non-root to set up auth, this will be quicker and we're almost done
-      ansible.builtin.shell:
-        cmd: bash -x /home/debian/malcolm_debian12_installer.sh
-        chdir: /home/debian
-      become: true
-      become_user: debian
-
-    - name: Create malcolm.service
-      template: src=malcolm.service.j2 dest=/etc/systemd/system/malcolm.service mode=644
-
-    - name: Enable malcolm.service
-      ansible.builtin.systemd_service:
-        daemon_reload: true
-        name: malcolm.service
-        enabled: true
-        state: started
-
-- name: Reload malcolm.service
-  when:
-    - malcolm_service_status.status.LoadState == 'loaded'
-    - malcolm_service_status.status.UnitFileState == 'enabled'
-  ansible.builtin.systemd_service:
-    name: malcolm.service
-    enabled: true
-    state: reloaded
+- name: Converge Malcolm service
+  ansible.builtin.include_tasks: service.yml

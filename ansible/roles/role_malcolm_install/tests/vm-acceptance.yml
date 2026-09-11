@@ -1,0 +1,69 @@
+---
+- name: Install and verify Malcolm on a disposable Debian acceptance VM
+  hosts: malcolm_acceptance
+  become: true
+  gather_facts: true
+  vars:
+    malcolm_acceptance_authorized: false
+    malcolm_acceptance_admin_username: condef
+    malcolm_acceptance_admin_password: ""
+    malcolm_acceptance_capture_interface: ""
+    malcolm_acceptance_expected_secondary_username: ""
+  pre_tasks:
+    - name: Require explicit authorization for VM-only acceptance
+      ansible.builtin.assert:
+        that:
+          - malcolm_acceptance_authorized | bool
+          - inventory_hostname not in ["localhost", "127.0.0.1"]
+          - ansible_connection | default("ssh") != "local"
+          - malcolm_acceptance_admin_password | length > 0
+        fail_msg: >-
+          This playbook may manage packages, Docker, sysctls, and systemd. Run it
+          only against a disposable remote VM with authorization set explicitly.
+  roles:
+    - role: role_malcolm_install
+      vars:
+        ludus_install_malcolm_admin_username: "{{ malcolm_acceptance_admin_username }}"
+        ludus_install_malcolm_admin_password: "{{ malcolm_acceptance_admin_password }}"
+        ludus_install_malcolm_capture_enabled: true
+        ludus_install_malcolm_capture_interface: "{{ malcolm_acceptance_capture_interface }}"
+  post_tasks:
+    - name: Verify an expected secondary principal remains present
+      ansible.builtin.command:
+        argv:
+          - grep
+          - --fixed-strings
+          - "{{ malcolm_acceptance_expected_secondary_username }}:"
+          - "{{ ludus_install_malcolm_install_dir }}/nginx/htpasswd"
+      changed_when: false
+      no_log: true
+      when: malcolm_acceptance_expected_secondary_username | length > 0
+
+    - name: Fingerprint persistent secret and CA files without reading them
+      ansible.builtin.stat:
+        path: "{{ ludus_install_malcolm_install_dir }}/{{ item }}"
+        checksum_algorithm: sha256
+      loop:
+        - config/netbox-secret.env
+        - config/postgres.env
+        - config/valkey.env
+        - config/arkime-secret.env
+        - .opensearch.primary.curlrc
+        - logstash/certs/ca.crt
+        - nginx/htpasswd
+        - .ludus-initialization/config__netbox-secret.env
+        - .ludus-initialization/config__postgres.env
+        - .ludus-initialization/config__valkey.env
+        - .ludus-initialization/config__arkime-secret.env
+        - .ludus-initialization/opensearch-primary-curlrc
+        - .ludus-initialization/forwarding-ca
+      register: _malcolm_acceptance_fingerprints
+      no_log: true
+
+    - name: Report secret fingerprints for cross-run comparison
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }} sha256={{ item.stat.checksum | default('missing') }}
+      loop: "{{ _malcolm_acceptance_fingerprints.results }}"
+      loop_control:
+        label: "{{ item.item }}"

@@ -1,0 +1,57 @@
+---
+- name: Inspect persistent Malcolm runtime data
+  ansible.builtin.find:
+    paths:
+      - "{{ ludus_install_malcolm_install_dir }}/postgres"
+      - "{{ ludus_install_malcolm_install_dir }}/valkey"
+      - "{{ ludus_install_malcolm_install_dir }}/opensearch"
+    file_type: any
+    hidden: true
+    recurse: false
+  register: _ludus_install_malcolm_runtime_data
+  changed_when: false
+
+- name: Inspect managed Malcolm service state file
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_systemd_unit_path }}"
+  register: _ludus_install_malcolm_runtime_service_state
+
+- name: Inspect administrator state for legacy runtime evidence
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}/config/auth.env"
+  register: _ludus_install_malcolm_runtime_auth_stat
+  no_log: true
+  diff: false
+
+- name: Read administrator state for legacy runtime evidence
+  ansible.builtin.slurp:
+    src: "{{ ludus_install_malcolm_install_dir }}/config/auth.env"
+  register: _ludus_install_malcolm_runtime_auth
+  when: _ludus_install_malcolm_runtime_auth_stat.stat.exists
+  no_log: true
+  diff: false
+
+- name: Resolve administrator legacy runtime evidence
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_runtime_admin_content: >-
+      {{ (_ludus_install_malcolm_runtime_auth.content | default('') | b64decode)
+         if _ludus_install_malcolm_runtime_auth_stat.stat.exists else '' }}
+    _ludus_install_malcolm_runtime_admin_crypt_b64: >-
+      {{ (((_ludus_install_malcolm_runtime_auth.content | default('') | b64decode)
+           | regex_findall('(?m)^MALCOLM_PASSWORD=(.*)$') | first) | default('')) }}
+  no_log: true
+  diff: false
+
+- name: Classify established legacy Malcolm runtime
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_legacy_runtime_established: >-
+      {{ (_ludus_install_malcolm_runtime_data.matched | int > 0)
+         or _ludus_install_malcolm_runtime_service_state.stat.exists
+         or ((_ludus_install_malcolm_runtime_admin_content
+              | regex_findall('(?m)^MALCOLM_USERNAME=.+$') | length == 1)
+             and (_ludus_install_malcolm_runtime_admin_crypt_b64
+                  is match('^[A-Za-z0-9+/]+={0,2}$'))
+             and ((_ludus_install_malcolm_runtime_admin_crypt_b64 | b64decode)
+                  is match('^[$]6[$][^$]+[$].+'))) }}
+  no_log: true
+  diff: false

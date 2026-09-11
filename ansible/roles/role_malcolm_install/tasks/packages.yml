@@ -1,0 +1,22 @@
+---
+- name: Install Docker for the selected Malcolm account
+  ansible.builtin.include_role:
+    name: ludus_install_docker
+  vars:
+    ludus_install_docker_user: "{{ ludus_install_malcolm_user }}"
+
+- name: Install Malcolm host prerequisites
+  ansible.builtin.apt:
+    name:
+      - apache2-utils
+      - ca-certificates
+      - git
+      - make
+      - openssl
+      - python3
+      - python3-cryptography
+      - python3-pip
+      - python3-venv
+      - xz-utils
+    state: present
+    update_cache: true

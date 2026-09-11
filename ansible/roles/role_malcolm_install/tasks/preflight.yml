@@ -1,0 +1,265 @@
+---
+- name: Validate supported Malcolm deployment inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Debian"
+      - ansible_distribution_major_version | string in ["12", "13"]
+      - ansible_architecture in ["x86_64", "amd64"]
+      - ludus_install_malcolm_version == "v26.08.0"
+      - ludus_install_malcolm_commit == "07bbccdfe2732fb5c5147070cdfca2857b85bacc"
+      - ludus_install_malcolm_admin_username | length > 0
+      - ludus_install_malcolm_admin_password | length > 0
+      - ludus_install_malcolm_capture_rotation_megabytes | int > 0
+      - ludus_install_malcolm_capture_rotation_minutes | int > 0
+    fail_msg: >-
+      Malcolm requires Debian 12 or 13 on amd64, the immutable v26.08.0
+      (07bbccdfe2732fb5c5147070cdfca2857b85bacc) source pin, a nonempty admin
+      username and admin password, and positive capture rotation values.
+
+- name: Resolve the Malcolm account
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ ludus_install_malcolm_user }}"
+  register: _ludus_install_malcolm_passwd
+  changed_when: false
+
+- name: Record resolved Malcolm account facts
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_home: >-
+      {{ (_ludus_install_malcolm_passwd.stdout.split(':'))[5] }}
+    _ludus_install_malcolm_uid: >-
+      {{ (_ludus_install_malcolm_passwd.stdout.split(':'))[2] | int }}
+    _ludus_install_malcolm_gid: >-
+      {{ (_ludus_install_malcolm_passwd.stdout.split(':'))[3] | int }}
+    _ludus_install_malcolm_capture_interface: >-
+      {{ (ludus_install_malcolm_capture_interface | trim)
+         if (ludus_install_malcolm_capture_interface | trim | length > 0)
+         else (ansible_default_ipv4.interface | default('')) }}
+    _ludus_install_malcolm_partial_dir: "{{ ludus_install_malcolm_install_dir }}.ludus-partial"
+    _ludus_install_malcolm_release_marker: "{{ ludus_install_malcolm_install_dir }}.ludus-release.yml"
+
+- name: Validate the live capture interface
+  ansible.builtin.assert:
+    that:
+      - _ludus_install_malcolm_capture_interface | length > 0
+      - _ludus_install_malcolm_capture_interface in ansible_interfaces
+    fail_msg: >-
+      Live capture interface '{{ _ludus_install_malcolm_capture_interface }}'
+      does not exist. Available interfaces: {{ ansible_interfaces | join(', ') }}.
+  when: ludus_install_malcolm_capture_enabled | bool
+
+- name: Inspect Malcolm installation directory
+  ansible.builtin.stat:
+    path: "{{ ludus_install_malcolm_install_dir }}"
+  register: _ludus_install_malcolm_source_stat
+
+- name: Reject a non-directory installation path
+  ansible.builtin.assert:
+    that: _ludus_install_malcolm_source_stat.stat.isdir | default(false)
+    fail_msg: >-
+      Existing Malcolm path {{ ludus_install_malcolm_install_dir }} is not a
+      directory; move it aside before installation.
+  when: _ludus_install_malcolm_source_stat.stat.exists
+
+- name: Inspect role-owned partial source state
+  ansible.builtin.stat:
+    path: "{{ _ludus_install_malcolm_partial_dir }}"
+  register: _ludus_install_malcolm_partial_stat
+
+- name: Record partial source state
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_partial_exists: >-
+      {{ _ludus_install_malcolm_partial_stat.stat.exists }}
+    _ludus_install_malcolm_partial_no_checkout: false
+
+- name: Inspect partial Git source state
+  when: _ludus_install_malcolm_partial_exists
+  block:
+    - name: Inspect partial Git metadata
+      ansible.builtin.stat:
+        path: "{{ _ludus_install_malcolm_partial_dir }}/.git"
+      register: _ludus_install_malcolm_partial_git_stat
+
+    - name: Read partial Git origin
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ _ludus_install_malcolm_partial_dir }}"
+          - config
+          - --get
+          - remote.origin.url
+      register: _ludus_install_malcolm_partial_origin
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_partial_git_stat.stat.exists
+
+    - name: Inspect partial Git modifications
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ _ludus_install_malcolm_partial_dir }}"
+          - status
+          - --porcelain
+          - --untracked-files=no
+      register: _ludus_install_malcolm_partial_status
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_partial_git_stat.stat.exists
+
+    - name: Verify the pinned commit exists in partial Git source
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ _ludus_install_malcolm_partial_dir }}"
+          - rev-parse
+          - "{{ ludus_install_malcolm_commit }}^{commit}"
+      register: _ludus_install_malcolm_partial_commit
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_partial_git_stat.stat.exists
+
+    - name: Read partial Git HEAD
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ _ludus_install_malcolm_partial_dir }}"
+          - rev-parse
+          - HEAD
+      register: _ludus_install_malcolm_partial_head
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_partial_git_stat.stat.exists
+
+    - name: Record validated no-checkout partial state
+      ansible.builtin.set_fact:
+        _ludus_install_malcolm_partial_no_checkout: >-
+          {{ (_ludus_install_malcolm_partial_status.stdout | trim | length > 0)
+             and (_ludus_install_malcolm_partial_status.stdout_lines
+                  | reject('match', '^D  ') | list | length == 0) }}
+      when: _ludus_install_malcolm_partial_git_stat.stat.exists
+
+    - name: Require safely resumable partial Git source
+      ansible.builtin.assert:
+        that:
+          - _ludus_install_malcolm_partial_git_stat.stat.isdir | default(false)
+          - _ludus_install_malcolm_partial_origin.rc | default(1) == 0
+          - _ludus_install_malcolm_partial_origin.stdout | trim == "https://github.com/cisagov/Malcolm.git"
+          - _ludus_install_malcolm_partial_status.rc | default(1) == 0
+          - >-
+            (_ludus_install_malcolm_partial_status.stdout | trim | length == 0)
+            or
+            _ludus_install_malcolm_partial_no_checkout
+          - _ludus_install_malcolm_partial_commit.rc | default(1) == 0
+          - _ludus_install_malcolm_partial_commit.stdout | trim == ludus_install_malcolm_commit
+          - _ludus_install_malcolm_partial_head.rc | default(1) == 0
+          - _ludus_install_malcolm_partial_head.stdout | trim == ludus_install_malcolm_commit
+        fail_msg: >-
+          Partial path {{ _ludus_install_malcolm_partial_dir }} cannot be
+          proven as a clean, resumable checkout of the pinned Malcolm source.
+          It was left untouched; move it aside or recover it manually.
+
+- name: Inspect existing Malcolm source metadata
+  when: _ludus_install_malcolm_source_stat.stat.exists
+  block:
+    - name: Inspect existing Git metadata
+      ansible.builtin.stat:
+        path: "{{ ludus_install_malcolm_install_dir }}/.git"
+      register: _ludus_install_malcolm_git_stat
+
+    - name: Inspect release metadata files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ ludus_install_malcolm_install_dir }}/scripts/malcolm_constants.py"
+        - "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      register: _ludus_install_malcolm_metadata_stats
+
+    - name: Read Malcolm version constant
+      ansible.builtin.slurp:
+        src: "{{ ludus_install_malcolm_install_dir }}/scripts/malcolm_constants.py"
+      register: _ludus_install_malcolm_constants
+      when: _ludus_install_malcolm_metadata_stats.results[0].stat.isreg | default(false)
+
+    - name: Read Malcolm Compose image versions
+      ansible.builtin.slurp:
+        src: "{{ ludus_install_malcolm_install_dir }}/docker-compose.yml"
+      register: _ludus_install_malcolm_compose
+      when: _ludus_install_malcolm_metadata_stats.results[1].stat.isreg | default(false)
+
+    - name: Read existing Git commit
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ ludus_install_malcolm_install_dir }}"
+          - rev-parse
+          - HEAD
+      register: _ludus_install_malcolm_git_head
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_git_stat.stat.exists
+
+    - name: Inspect existing Git modifications
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ ludus_install_malcolm_install_dir }}"
+          - status
+          - --porcelain
+          - --untracked-files=no
+      register: _ludus_install_malcolm_git_status
+      changed_when: false
+      failed_when: false
+      when: _ludus_install_malcolm_git_stat.stat.exists
+
+    - name: Derive detected Malcolm source metadata
+      ansible.builtin.set_fact:
+        _ludus_install_malcolm_detected_version: >-
+          {{ ((_ludus_install_malcolm_constants.content | default('') | b64decode)
+              | regex_findall('MALCOLM_VERSION\s*=\s*["'']([^"'']+)["'']')
+              | first) | default('unknown') }}
+        _ludus_install_malcolm_detected_image_versions: >-
+          {{ ((_ludus_install_malcolm_compose.content | default('') | b64decode)
+              | regex_findall('ghcr[.]io/idaholab/malcolm/[^:\s]+:([0-9]+[.][0-9]+[.][0-9]+)'))
+             | unique | list }}
+        _ludus_install_malcolm_detected_commit: >-
+          {{ _ludus_install_malcolm_git_head.stdout | default('unknown') | trim }}
+
+    - name: Validate existing Git source
+      ansible.builtin.assert:
+        that:
+          - _ludus_install_malcolm_git_head.rc == 0
+          - _ludus_install_malcolm_detected_commit == ludus_install_malcolm_commit
+          - _ludus_install_malcolm_git_status.rc == 0
+          - _ludus_install_malcolm_git_status.stdout | trim | length == 0
+        fail_msg: >-
+          Existing Malcolm Git source is commit
+          {{ _ludus_install_malcolm_detected_commit }} with local modifications
+          '{{ _ludus_install_malcolm_git_status.stdout | default('unreadable') | trim }}'.
+          This role requires clean commit {{ ludus_install_malcolm_commit }} and
+          will not reset modified installations. Move or migrate it explicitly.
+      when: _ludus_install_malcolm_git_stat.stat.exists
+
+    - name: Validate existing release source without Git metadata
+      ansible.builtin.assert:
+        that: false
+        fail_msg: >-
+          Existing non-Git Malcolm directory has no immutable source
+          provenance and cannot be adopted safely.
+          Detected source version '{{ _ludus_install_malcolm_detected_version }}'
+          and image versions {{ _ludus_install_malcolm_detected_image_versions }};
+          required commit is {{ ludus_install_malcolm_commit }}. Move it aside
+          or migrate it explicitly before rerunning.
+      when: not _ludus_install_malcolm_git_stat.stat.exists
+
+- name: Record validated source state
+  ansible.builtin.set_fact:
+    _ludus_install_malcolm_source_exists: "{{ _ludus_install_malcolm_source_stat.stat.exists }}"
+    _ludus_install_malcolm_source_verified: "{{ _ludus_install_malcolm_source_stat.stat.exists }}"
