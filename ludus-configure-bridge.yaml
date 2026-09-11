@@ -1,0 +1,7 @@
+---
+- name: Configure the Ludus range bridge
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: ./ansible/roles/ludus_configure_bridge

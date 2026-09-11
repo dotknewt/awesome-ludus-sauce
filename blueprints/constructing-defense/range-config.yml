@@ -184,7 +184,6 @@ ludus:
     cpus: 8
     linux: true
     roles:
-      - ludus_configure_bridge
       - ludus_install_malcolm
     role_vars:
       # Existing Constructing Defense lab credential; replace outside this lab.
