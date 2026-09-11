@@ -1,0 +1,53 @@
+<Sysmon schemaversion="4.90">
+    <HashAlgorithms>md5,sha256</HashAlgorithms>
+    <DnsLookup>False</DnsLookup>
+    <CheckRevocation>False</CheckRevocation>
+    <ArchiveDirectory>sysmon</ArchiveDirectory>  
+    <EventFiltering>
+        <!--Event ID 1: Process creation-->
+        <ProcessCreate onmatch="include"></ProcessCreate>
+        <!--Event ID 2: A process changed a file creation time-->
+        <FileCreateTime onmatch="include"></FileCreateTime>
+        <!--Event ID 3: Network connection-->
+        <NetworkConnect onmatch="include"></NetworkConnect>
+        <!--Event ID 5: Process terminated-->
+        <ProcessTerminate onmatch="include"></ProcessTerminate>
+        <!--Event ID 6: Driver loaded-->
+        <DriverLoad onmatch="include"></DriverLoad>
+        <!--Event ID 7: Image loaded-->
+        <ImageLoad onmatch="include"></ImageLoad>
+        <!--Event ID 8: CreateRemoteThread-->
+        <CreateRemoteThread onmatch="include"></CreateRemoteThread>
+        <!--Event ID 9: RawAccessRead-->
+        <RawAccessRead onmatch="include"></RawAccessRead>
+        <!--Event ID 10: ProcessAccess-->
+        <ProcessAccess onmatch="include"></ProcessAccess>
+        <!--Event ID 11: FileCreate-->
+        <FileCreate onmatch="include"></FileCreate>
+        <!--Event ID 12: RegistryEvent (Object create and delete)-->
+        <!--Event ID 13: RegistryEvent (Value Set)-->
+        <!--Event ID 14: RegistryEvent (Key and Value Rename)-->
+        <RegistryEvent onmatch="include"></RegistryEvent>
+        <!--Event ID 15: FileCreateStreamHash-->
+        <FileCreateStreamHash onmatch="include"></FileCreateStreamHash>
+        <!--Event ID 17: PipeEvent (Pipe Created)-->
+        <!--Event ID 18: PipeEvent (Pipe Connected)-->
+        <PipeEvent onmatch="include"></PipeEvent>
+        <!--Event ID 19: WmiEvent (WmiEventFilter activity detected)-->
+        <!--Event ID 20: WmiEvent (WmiEventConsumer activity detected)-->
+        <!--Event ID 21: WmiEvent (WmiEventConsumerToFilter activity detected)-->
+        <WmiEvent onmatch="include"></WmiEvent>
+        <!--Event ID 22: DNSEvent (DNS query)-->
+        <DnsQuery onmatch="include"></DnsQuery>
+        <!--Event ID 23: FileDelete (A file delete was detected)-->
+        <FileDelete onmatch="include"></FileDelete>
+        <!--Event ID 24: ClipboardChange (New content in the clipboard)-->
+        <ClipboardChange onmatch="include"></ClipboardChange>
+	<!--Event ID 25: ProcessTampering-->
+        <ProcessTampering onmatch="include"></ProcessTampering>
+        <!--Event ID 26: FileDeleteDetected -->
+        <FileDeleteDetected onmatch="include"></FileDeleteDetected>
+	<!--Event ID 29: FileExecutableDetected -->
+	<FileExecutableDetected onmatch="include"></FileExecutableDetected>
+    </EventFiltering>
+</Sysmon>
