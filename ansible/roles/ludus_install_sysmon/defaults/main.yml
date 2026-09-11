@@ -4,6 +4,6 @@ sysmon_config_dest: 'C:\Windows\sysmonconfig.xml'
 sysmon_drv_reg: "C:\\Windows\\Sysmon64.exe -i -accepteula"
 sysmon_config_source: "{{ lookup('first_found', 'sysmonconfig.xml') }}" # searches files/ first
 sysmon_installer_url: https://download.sysinternals.com/files/Sysmon.zip
-sysmon_installer_version: "15.15"
-sysmon_archive_sha256sum: "0EDB284C2157562C15B2EB6F7FB0B3D1752C86DBCE782FD4E5DFEA89B10E4BA6"
+sysmon_installer_version: "15.22"
+sysmon_archive_sha256sum: "00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54"
 sysmon_eventlog_maxsize_gigabyte: 1
