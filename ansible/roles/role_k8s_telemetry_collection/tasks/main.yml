@@ -66,9 +66,9 @@
       - ca-certificates
       - gnupg
       - lsb-release
-      #- software-properties-common
     state: present
   become: true
+
 - name: Create minikube audit policy directory
   file:
     path: "{{ ansible_env.HOME }}/.minikube/files/etc/ssl/certs"
