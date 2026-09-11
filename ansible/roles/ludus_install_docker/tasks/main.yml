@@ -12,6 +12,11 @@
       - python3-debian
     state: present
 
+- name: Remove deprecated /etc/apt/sources.list.d/docker.list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+
 - name: Configure Docker apt repository
   ansible.builtin.deb822_repository:
     name: docker
