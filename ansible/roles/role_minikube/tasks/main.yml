@@ -15,7 +15,6 @@
     name: docker
     types: deb
     signed_by: https://download.docker.com/linux/debian/gpg
-    architechtures: amd64
     state: present
 
 - name: Install Docker Packages
