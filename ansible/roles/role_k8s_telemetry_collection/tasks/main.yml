@@ -20,7 +20,7 @@
     uid: 1000
     groups: docker
     append: true
-    
+
 - name: Reset connection to apply new group memberships
   meta: reset_connection
 
@@ -55,7 +55,7 @@
 - name: Update package cache
   package:
     update_cache: yes
-  become: yes
+  become: true
 
 - name: Install required packages
   package:
@@ -66,14 +66,14 @@
       - ca-certificates
       - gnupg
       - lsb-release
-      - software-properties-common
+      #- software-properties-common
     state: present
-  become: yes
+  become: true
 - name: Create minikube audit policy directory
   file:
     path: "{{ ansible_env.HOME }}/.minikube/files/etc/ssl/certs"
     state: directory
-    mode: '0755'
+    mode: "0755"
 
 - name: Create Kubernetes audit policy
   copy:
@@ -124,22 +124,21 @@
           omitStages:
             - "RequestReceived"
     dest: "{{ ansible_env.HOME }}/.minikube/files/etc/ssl/certs/audit-policy.yaml"
-    mode: '0644'
+    mode: "0644"
 
 - name: Stop existing minikube cluster
   command: minikube stop
   failed_when: false
 
 - name: Start minikube with audit logging
-  ansible.builtin.shell: 
+  ansible.builtin.shell:
     cmd: minikube start \
       --extra-config=apiserver.audit-policy-file=/etc/ssl/certs/audit-policy.yaml \
       --extra-config=apiserver.audit-log-path=-
   become: true
   become_user: debian
-
   environment:
-    CHANGE_MINIKUBE_NONE_USER: true
+    CHANGE_MINIKUBE_NONE_USER: "true"
   register: minikube_start
 
 - name: Wait for minikube to be ready
@@ -211,33 +210,33 @@
     content: |
       Kubernetes Telemetry Deployment Summary
       =====================================
-      
+
       Cluster: {{ k8s_cluster_name }}
       Splunk Endpoint: {{ splunk_endpoint }}
       HEC Token: {{ splunk_hec_token }}
       Target Index: {{ k8s_splunk_index }}
-      
+
       Deployment Status:
       {{ k8s_pods.stdout }}
-      
+
       Collector Pods:
       {{ collector_pods.stdout }}
-      
+
       Deployed: {{ ansible_date_time.iso8601 }}
     dest: "/tmp/k8s_telemetry_deployment.txt"
-    mode: '0644'
+    mode: "0644"
 
 - name: Display deployment completion
   debug:
     msg: |
       Kubernetes Telemetry Setup Complete!
-      
+
       Configuration:
       - Cluster: {{ k8s_cluster_name }}
       - Splunk Endpoint: {{ splunk_endpoint }}
       - Target Index: {{ k8s_splunk_index }}
-      
+
       Collector Status:
       {{ collector_pods.stdout }}
-      
+
       Check Splunk for incoming telemetry data in index "{{ k8s_splunk_index }}"
