@@ -80,6 +80,7 @@
     - name: Inspect the host ip executable
       ansible.builtin.stat:
         path: "{{ _ludus_configure_bridge_ip_command }}"
+        follow: true
       register: _ludus_configure_bridge_ip_stat
 
     - name: Require an executable host ip command
@@ -95,6 +96,7 @@
     - name: Inspect the host ifquery executable
       ansible.builtin.stat:
         path: "{{ _ludus_configure_bridge_ifquery_command }}"
+        follow: true
       register: _ludus_configure_bridge_ifquery_stat
 
     - name: Require an executable host ifquery command

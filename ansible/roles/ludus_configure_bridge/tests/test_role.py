@@ -19,6 +19,53 @@ def test_role_uses_host_delegation_root_escalation_and_local_python(tmp_path: Pa
     assert become_calls(fixture)
 
 
+@pytest.mark.parametrize("command", ["ip", "ifquery"])
+def test_symlinked_host_executable_converges_and_is_idempotent(
+    tmp_path: Path, command: str
+) -> None:
+    fixture = make_fixture(tmp_path)
+    executable = fixture[command]
+    target = executable.with_name(f"{command}-target")
+    executable.rename(target)
+    executable.symlink_to(target.name)
+
+    first = run_role(tmp_path, fixture)
+
+    assert first.returncode == 0, first.stdout + first.stderr
+    assert link_state(fixture)["ageing_time"] == 0
+    assert link_state(fixture)["promiscuous"] is True
+    assert (fixture["hook_dir"] / "ludus-configure-bridge-vmbr1002").is_file()
+
+    second = run_role(tmp_path, fixture)
+
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert "changed=0" in second.stdout
+
+
+@pytest.mark.parametrize("command", ["ip", "ifquery"])
+@pytest.mark.parametrize("target_kind", ["missing", "directory", "nonexecutable"])
+def test_invalid_host_executable_symlink_is_rejected_before_mutation(
+    tmp_path: Path, command: str, target_kind: str
+) -> None:
+    fixture = make_fixture(tmp_path)
+    executable = fixture[command]
+    target = executable.with_name(f"{command}-target")
+    executable.unlink()
+    if target_kind == "directory":
+        target.mkdir()
+    elif target_kind == "nonexecutable":
+        target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        target.chmod(0o644)
+    executable.symlink_to(target.name)
+
+    result = run_role(tmp_path, fixture)
+
+    assert result.returncode != 0
+    assert f"executable {command} command" in result.stdout + result.stderr
+    assert calls(fixture) == []
+    assert list(fixture["hook_dir"].iterdir()) == []
+
+
 @pytest.mark.parametrize(
     ("range_number", "bridge"),
     [(2, "vmbr1002"), (254, "vmbr1254")],
