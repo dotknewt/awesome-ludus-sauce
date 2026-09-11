@@ -5,8 +5,8 @@ ludus_install_malcolm_version: v26.08.0
 ludus_install_malcolm_commit: 07bbccdfe2732fb5c5147070cdfca2857b85bacc
 ludus_install_malcolm_venv_dir: "{{ ludus_install_malcolm_install_dir }}/.venv"
 
-ludus_install_malcolm_admin_username: condef
-ludus_install_malcolm_admin_password: "Temp1234!!"
+ludus_install_malcolm_admin_username: malcolm
+ludus_install_malcolm_admin_password: "InTheMiddle"
 
 ludus_install_malcolm_capture_enabled: false
 ludus_install_malcolm_capture_interface: ""
