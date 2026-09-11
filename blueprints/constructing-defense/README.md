@@ -17,7 +17,6 @@ graph TB
     linuxa["linuxa (.15)<br/>utility host"]
     linuxv["linuxv (.16)<br/>minikube · K8s telemetry"]
     pcap["pcap (.17)<br/>Malcolm sensor"]
-    docker["docker (.100)<br/>VECTR · Ghostwriter · BloodHound CE"]
   end
 
   CERTER -. ESC1 abuse .-> DC
@@ -34,10 +33,9 @@ graph TB
 | CERTER  | win2022-server-x64-template           | .12  | ADCS CA, vulnerable to ESC1                    |
 | WIN11V  | win11-22h2-x64-enterprise-template    | .13  | Domain member, Splunk UF                       |
 | WIN11A  | win11-22h2-x64-enterprise-template    | .14  | Domain member / attacker workstation          |
-| linuxa  | debian-12-x64-server-template         | .15  | General-purpose Linux host                     |
-| linuxv  | debian-12-x64-server-template         | .16  | minikube cluster + K8s→Splunk telemetry        |
-| pcap    | debian-12-x64-server-template         | .17  | Malcolm network monitoring (64 GB RAM)         |
-| docker  | ubuntu-22.04-x64-server-template      | .100 | VECTR, Ghostwriter, BloodHound CE              |
+| linuxa  | debian-13.5-x64-server-no-template         | .15  | General-purpose Linux host                     |
+| linuxv  | debian-13.5-x64-server-no-template         | .16  | minikube cluster + K8s→Splunk telemetry        |
+| pcap    | debian-13.5-x64-server-no-template         | .17  | Malcolm network monitoring (64 GB RAM)         |
 
 All templates are stock Ludus built-ins — this source ships no Packer templates.
 
@@ -78,8 +76,6 @@ allocation, follow the bridge role's exact
 - Splunk (`http://dc:8000`): `condef` / `Temp1234!!`
 - Malcolm (`https://pcap:443`): `condef` / `Temp1234!!`
 - Linux hosts: `debian` / `debian`
-- VECTR: `admin` / `11_ThisIsTheFirstPassword_11`
-- BloodHound CE: `admin` / `bloodhoundpassword123`
 
 ## Manual post-deploy steps
 
@@ -103,10 +99,3 @@ They are not wired into any role — run them by hand (or copy them onto the DC 
   runs during the normal deploy (not testing mode), but confirm the DC has egress when it runs.
 - **`k8s_cluster_name: "minkube"`** in `role_vars` is a typo carried over from the original
   (role default is `minikube`); left unchanged to preserve behavior parity.
-
-## Differences from the original environment
-
-- The `commando` VM (`commando-vm-template`) was **dropped** — that template is neither a Ludus
-  built-in nor shipped here. Add it back manually (e.g. via the `badsectorlabs.ludus_commandovm`
-  role and its template) if you need it.
-- The explicit `router:` block was removed; Ludus auto-provisions the range router.

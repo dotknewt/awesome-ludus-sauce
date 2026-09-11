@@ -16,3 +16,9 @@ ansible/roles/role_gpo_deploy/tasks/main.yml is a single big script; "convert" s
 The local behavioral suite passes independently of a Ludus deployment, but live
 Debian 12/13 compatibility is not proven until every item in the role's
 `tests/VM_ACCEPTANCE.md` has been executed successfully.
+
+## make ansible from scripts
+1. `create-shares.ps1` — creates AD users `OlaBruker` / `OlaAdmin`, 15 folders under
+   `C:\Shares\Share1..15`, and SMB shares `Logs1..15`.
+2. `kerberoast-telemetry.ps1` — creates `OU=Kerberoast` and users with SPNs so Kerberoasting
+   generates telemetry.
