@@ -5,15 +5,42 @@ An Ansible Role that installs, upgrades, and configures Sysmon on Windows Server
 ```yml
 ---
 sysmon_executable_path: 'C:\Windows\Sysmon64.exe'
-sysmon_driver_path: 'C:\Windows\SysmonDrv.sys'
 sysmon_config_dest: 'C:\Windows\sysmonconfig.xml'
 sysmon_drv_reg: '"C:\Windows\Sysmon64.exe" -i -accepteula'
-sysmon_config_source: files/sysmonconfig.xml
+sysmon_config_source: "{{ lookup('first_found', 'sysmonconfig.xml') }}"
 sysmon_installer_url: https://download.sysinternals.com/files/Sysmon.zip
-sysmon_installer_version: 15.15
-sysmon_archive_sha256sum: "0EDB284C2157562C15B2EB6F7FB0B3D1752C86DBCE782FD4E5DFEA89B10E4BA6"
+sysmon_download_latest: false
+sysmon_installer_version: "15.22"
+sysmon_archive_sha256sum: "00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54"
 sysmon_eventlog_maxsize_gigabyte: 1
 ```
+
+### Archive selection
+
+By default, the role copies `files/sysmon.zip` from the role to the Windows host.
+Include that archive when distributing or installing the role. Keep
+`sysmon_installer_version` and `sysmon_archive_sha256sum` aligned with the bundled
+archive when replacing it. The role assumes the declared version is correct and
+verifies the archive checksum before installing. If the installed version already
+matches and its service exists, archive preparation is skipped.
+
+Set this in the VM's `role_vars` in `range-config.yml` to fetch the latest release:
+
+```yaml
+role_vars:
+  sysmon_download_latest: true
+```
+
+When enabled, the role downloads `sysmon_installer_url` on every run without archive
+checksum verification. HTTPS certificate validation remains enabled. Set the switch
+to `false` (or omit it) to use the bundled archive without contacting the download URL.
+
+Downloaded mode reads `Sysmon64.exe`'s product version and ignores the bundled
+version and checksum variables. Both modes prepare the archive before uninstalling
+an existing installation. Sysmon is replaced when its installed version differs
+from the target, or installed when its executable or service is absent.
+Switching back to the bundled archive can therefore downgrade Sysmon. Temporary
+staging files are removed even if preparation or installation fails.
 
 ### Hints
 

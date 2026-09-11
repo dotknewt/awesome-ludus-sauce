@@ -5,17 +5,33 @@
       ansible.builtin.include_tasks:
         file: check.yml
 
+    - name: Use declared bundled Sysmon version
+      ansible.builtin.set_fact:
+        sysmon_target_version: "{{ sysmon_installer_version }}"
+
+    - name: Prepare selected Sysmon archive
+      when: >-
+        sysmon_download_latest | bool
+        or not sysmon_service.exists
+        or not sysmon_exe.stat.exists
+        or (sysmon_exe_version.win_file_version.product_version | default('') !=
+            sysmon_target_version)
+      ansible.builtin.include_tasks:
+        file: prepare.yml
+
     - name: SYSMON UNINSTALL TASK
-      when: # if wrong sysmon_exe_version
+      when:
         - sysmon_exe.stat.exists
-        - sysmon_exe_version.win_file_version.product_version is defined
-        - sysmon_exe_version.win_file_version.product_version | default('1.0') != sysmon_installer_version
+        - >-
+          sysmon_exe_version.win_file_version.product_version | default('') !=
+          sysmon_target_version
       ansible.builtin.include_tasks:
         file: uninstall.yml
 
     - name: SYSMON INSTALL TASK
       when: | # if not sysmon_service.exists OR uninstall ran successfully
         not sysmon_service.exists
+        or not sysmon_exe.stat.exists
         or (sysmon_uninstall.changed is defined and sysmon_uninstall.changed)
       ansible.builtin.include_tasks:
         file: install.yml
@@ -23,9 +39,22 @@
     - name: SYSMON CONFIGURE TASK
       when: |
         (sysmon_install.changed is defined and sysmon_install.changed)
-        or (sysmon_config.stat.checksum != sysmon_source_config.stat.checksum)
-        or (sysmondrv_reg_parameters.value is defined and sysmondrv_reg_parameters.value != sysmon_drv_reg)
-        or (sysmon64_reg_parameters.value is defined and sysmon64_reg_parameters.value != sysmon_executable_path)
-        or (sysmonevtlog_reg_parameters.value is defined and (sysmonevtlog_reg_parameters.value | default(0)) | int != (sysmon_eventlog_maxsize_gigabyte | int * 1024 * 1024 * 1024))
+        or not sysmon_config.stat.exists
+        or (sysmon_config.stat.checksum | default('') !=
+            sysmon_source_config.stat.checksum | default(''))
+        or (sysmondrv_reg_parameters.value is defined
+            and sysmondrv_reg_parameters.value != sysmon_drv_reg)
+        or (sysmon64_reg_parameters.value is defined
+            and sysmon64_reg_parameters.value != sysmon_executable_path)
+        or (sysmonevtlog_reg_parameters.value is defined
+            and (sysmonevtlog_reg_parameters.value | default(0)) | int !=
+                (sysmon_eventlog_maxsize_gigabyte | int * 1024 * 1024 * 1024))
       ansible.builtin.include_tasks:
         file: configure.yml
+  always:
+    - name: Remove Sysmon staging directory
+      when: sysmon_dl_temp.path is defined
+      ansible.windows.win_file:
+        path: "{{ sysmon_dl_temp.path }}"
+        state: absent
+      changed_when: false

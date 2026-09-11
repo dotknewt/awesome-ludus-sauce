@@ -18,21 +18,34 @@ argument_specs:
           Maximum capacity of the Sysmon operational log in gigabytes (GB).
           This parameter defines the log’s storage limit before it automatically overwrites the oldest events.
           Sysmon logs are stored in the Windows Event Log at Applications and Services Logs/Microsoft/Windows/Sysmon/Operational.
+      sysmon_download_latest:
+        type: bool
+        required: false
+        default: false
+        description: >-
+          Download the latest archive without checksum verification instead of
+          using files/sysmon.zip.
+      sysmon_installer_version:
+        type: str
+        required: false
+        default: "15.22"
+        description: >-
+          Version of the bundled files/sysmon.zip archive. Assumed to match
+          the archive; ignored when sysmon_download_latest is true.
       sysmon_archive_sha256sum:
         type: str
         required: false
-        default: "0EDB284C2157562C15B2EB6F7FB0B3D1752C86DBCE782FD4E5DFEA89B10E4BA6"
-        description: SHA256 checksum for the Sysmon.zip archive.
+        default: "00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54"
+        description: >-
+          SHA256 checksum of the bundled files/sysmon.zip archive.
+          Ignored when sysmon_download_latest is true.
       sysmon_installer_url:
         type: str
         required: false
         default: "https://download.sysinternals.com/files/Sysmon.zip"
-        description: URL to the Sysmon.zip installer archive.
-      sysmon_installer_version:
-        type: str
-        required: false
-        default: "15.15"
-        description: Version of Sysmon to install.
+        description: >-
+          URL to the Sysmon.zip installer archive when sysmon_download_latest
+          is true.
       sysmon_config_source:
         type: str
         required: false

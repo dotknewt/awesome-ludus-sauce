@@ -12,7 +12,7 @@
   block:
     - name: Create config file
       when: not sysmon_config.stat.exists
-      ansible.builtin.copy:
+      ansible.windows.win_copy:
         src: "{{ sysmon_config_source }}"
         dest: "{{ sysmon_config_dest }}"
         backup: true
@@ -23,7 +23,7 @@
         - sysmon_config.stat.checksum is defined
         - sysmon_source_config.stat.checksum is defined
         - (sysmon_config.stat.checksum != sysmon_source_config.stat.checksum)
-      ansible.builtin.copy:
+      ansible.windows.win_copy:
         src: "{{ sysmon_config_source }}"
         dest: "{{ sysmon_config_dest }}"
         backup: true
@@ -33,8 +33,8 @@
       when: |
         (sysmon_install.changed is defined and sysmon_install.changed)
         or (sysmon_service_update.rc is defined and sysmon_service_update.rc == 0)
-        or (sysmon_config_created.rc is defined and sysmon_config_created.rc == 0)
-        or (sysmon_config_updated.rc is defined and sysmon_config_updated.rc == 0)
+        or (sysmon_config_created.changed | default(false))
+        or (sysmon_config_updated.changed | default(false))
       ansible.windows.win_command:
         cmd: "{{ sysmon_executable_path }} -c {{ sysmon_config_dest }}"
       register: sysmon_config_reload
