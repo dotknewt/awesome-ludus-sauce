@@ -55,6 +55,18 @@ privilege-escalated execution even though it is assigned to `pcap`. It supports
 single-node Ludus only and does not create bridges, restart networking, or
 configure individual VLANs independently.
 
+To apply or reapply these settings directly on the host once the range bridge
+exists, run the [host playbook](../../ludus-configure-bridge.yaml) from the
+repository root **on the single-node Ludus/Proxmox host**, with Ansible installed:
+
+```sh
+sudo ansible-playbook ludus-configure-bridge.yaml -e range_second_octet=3
+```
+
+Replace `3` with this range's numeric `range_second_octet` allocation (1–254),
+not its textual range ID. This example configures `vmbr1003` (`1000 + 3`).
+The playbook runs locally on the host and requires the bridge to already exist.
+
 Removing the role or deleting this blueprint's range does not remove its
 persistent host hook. Before deleting the range or reusing its numeric
 allocation, follow the bridge role's exact
