@@ -41,7 +41,8 @@
       Primary OpenSearch credentials are missing from initialized or legacy
       established runtime. Restore .opensearch.primary.curlrc from backup; the
       role will not silently rotate the password used by retained data.
-  no_log: true
+      Evidence: initialization_marker={{ _ludus_install_malcolm_primary_curlrc_evidence_stat.stat.exists | bool }};
+      legacy_runtime={{ _ludus_install_malcolm_legacy_runtime_established | bool }}.
   diff: false
 
 - name: Converge independent Malcolm backend secrets

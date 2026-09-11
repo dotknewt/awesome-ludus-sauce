@@ -35,6 +35,29 @@ def test_target_installs_cryptography_for_native_tls_modules() -> None:
     assert "python3-cryptography" in packages
 
 
+def test_fresh_upstream_scaffold_initializes_credentials_and_reruns_without_rotation(tmp_path: Path) -> None:
+    source = make_source(tmp_path)
+    placeholder = source / "opensearch" / ".gitignore"
+    placeholder_before = placeholder.read_bytes()
+
+    first = run_tasks(tmp_path, [CONFIGURE, AUTHENTICATION])
+
+    assert first.returncode == 0, first.stdout + first.stderr
+    credentials = [
+        source / "config" / name
+        for name in ("netbox-secret.env", "postgres.env", "valkey.env", "arkime-secret.env", "auth.env")
+    ] + [source / ".opensearch.primary.curlrc"]
+    before = {path: path.read_bytes() for path in credentials}
+    assert all(before.values())
+
+    second = run_tasks(tmp_path, [CONFIGURE, AUTHENTICATION])
+
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert "changed=0" in second.stdout
+    assert before == {path: path.read_bytes() for path in credentials}
+    assert placeholder.read_bytes() == placeholder_before
+
+
 def test_backend_secrets_recover_individually_and_converge(tmp_path: Path) -> None:
     source = make_source(tmp_path)
     netbox = source / "config" / "netbox-secret.env"

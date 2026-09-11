@@ -3,6 +3,6 @@
   hosts: localhost
   gather_facts: false
   roles:
-    - role: role_malcolm_install
+    - role: ludus_install_malcolm
   vars:
     ludus_install_malcolm_admin_password: syntax-check-only

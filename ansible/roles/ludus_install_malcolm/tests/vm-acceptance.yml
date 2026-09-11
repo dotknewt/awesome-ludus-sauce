@@ -21,7 +21,7 @@
           This playbook may manage packages, Docker, sysctls, and systemd. Run it
           only against a disposable remote VM with authorization set explicitly.
   roles:
-    - role: role_malcolm_install
+    - role: ludus_install_malcolm
       vars:
         ludus_install_malcolm_admin_username: "{{ malcolm_acceptance_admin_username }}"
         ludus_install_malcolm_admin_password: "{{ malcolm_acceptance_admin_password }}"

@@ -2,10 +2,48 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from helpers import ROLE_DIR, env_value, make_source, run_tasks
 
 
 CONFIGURE = ROLE_DIR / "tasks" / "configure.yml"
+
+
+@pytest.mark.parametrize(
+    "evidence_path",
+    [
+        "postgres/PG_VERSION",
+        "valkey/.retained-data",
+        "opensearch/nodes/retained-data",
+        "opensearch/.retained-data",
+        "postgres/.gitignore",
+        ".test-malcolm.service",
+        ".ludus-initialization/config__postgres.env",
+    ],
+)
+def test_missing_backend_with_runtime_evidence_reports_loss_without_exposing_contents(
+    tmp_path: Path, evidence_path: str
+) -> None:
+    source = make_source(tmp_path)
+    evidence = source / evidence_path
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text("retained-runtime-state\n", encoding="utf-8")
+    netbox = source / "config" / "netbox-secret.env"
+    retained_secret = "private-backend-value-must-not-appear-in-diagnostics"
+    netbox.write_text(f"SECRET_KEY={retained_secret}\n", encoding="utf-8")
+
+    result = run_tasks(tmp_path, [CONFIGURE])
+
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "postgres.env" in output
+    assert "restore" in output.lower()
+    assert "initialization_marker=" in output
+    assert "legacy_runtime=" in output
+    assert retained_secret not in output
+    assert not (source / "config" / "postgres.env").exists()
+    assert netbox.read_text(encoding="utf-8") == f"SECRET_KEY={retained_secret}\n"
 
 
 def test_configuration_initializes_examples_preserves_unknowns_and_converges(tmp_path: Path) -> None:

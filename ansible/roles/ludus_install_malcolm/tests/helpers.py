@@ -45,7 +45,8 @@ def make_source(tmp_path: Path) -> Path:
     source = tmp_path / "Malcolm"
     shutil.copytree(upstream / "config", source / "config")
     shutil.copy2(upstream / "docker-compose.yml", source / "docker-compose.yml")
-    for directory in ("nginx", "htadmin", "logstash", "filebeat", "opensearch"):
+    shutil.copytree(upstream / "opensearch", source / "opensearch")
+    for directory in ("nginx", "htadmin", "logstash", "filebeat"):
         (source / directory).mkdir(exist_ok=True)
     return source
 

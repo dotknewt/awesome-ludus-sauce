@@ -53,10 +53,11 @@
       config/{{ _ludus_install_malcolm_backend_file_stats.results[item].item }}
       from backup; the role will not recreate it from release examples or
       silently rotate credentials.
+      Evidence: initialization_marker={{ _ludus_install_malcolm_backend_evidence_stats.results[item].stat.exists | bool }};
+      legacy_runtime={{ _ludus_install_malcolm_legacy_runtime_established | bool }}.
   loop: "{{ range(0, _ludus_install_malcolm_backend_file_stats.results | length) | list }}"
   loop_control:
     label: "{{ _ludus_install_malcolm_backend_file_stats.results[item].item }}"
-  no_log: true
   diff: false
 
 - name: Initialize missing environment files from pinned examples

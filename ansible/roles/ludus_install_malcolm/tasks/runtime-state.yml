@@ -43,9 +43,13 @@
   diff: false
 
 - name: Classify established legacy Malcolm runtime
+  # The pinned checkout ships opensearch/.gitignore before any backend starts.
+  # All other entries, including hidden runtime data, remain evidence.
   ansible.builtin.set_fact:
     _ludus_install_malcolm_legacy_runtime_established: >-
-      {{ (_ludus_install_malcolm_runtime_data.matched | int > 0)
+      {{ (_ludus_install_malcolm_runtime_data.files
+          | rejectattr('path', 'equalto', ludus_install_malcolm_install_dir ~ '/opensearch/.gitignore')
+          | list | length > 0)
          or _ludus_install_malcolm_runtime_service_state.stat.exists
          or ((_ludus_install_malcolm_runtime_admin_content
               | regex_findall('(?m)^MALCOLM_USERNAME=.+$') | length == 1)

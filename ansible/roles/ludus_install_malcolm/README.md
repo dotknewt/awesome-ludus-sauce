@@ -127,7 +127,9 @@ interrupted fresh initialization of another.
 Before environment examples or credentials are generated, the role classifies
 an unmarked legacy installation as established when it has nonempty persistent
 data, the managed systemd service unit, or a valid established administrator
-crypt record. Missing backend files or the primary curlrc then fail closed even
+crypt record. The pinned source placeholder `opensearch/.gitignore` is excluded
+from persistent-data evidence; other entries, including hidden data, still count.
+Missing backend files or the primary curlrc then fail closed even
 without new markers. A malformed established secret, or complete loss of an
 authoritative file from marked or legacy established state, fails before example
 recreation or credential generation. Restore the missing authoritative artifact
@@ -169,6 +171,10 @@ bounded Basic-auth request to the self-signed localhost endpoint
 disabled only for that localhost readiness probe.
 
 ## Troubleshooting
+
+Missing backend-file and primary OpenSearch credential guards report the missing
+artifact and boolean initialization-marker/legacy-runtime evidence without
+printing credential contents.
 
 These commands report status without dumping environment files, hashes,
 private keys, or clear credentials:
