@@ -1,0 +1,6 @@
+---
+- name: Syntax-check ludus_configure_bridge
+  hosts: guest
+  gather_facts: false
+  roles:
+    - role: ludus_configure_bridge

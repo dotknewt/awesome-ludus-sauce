@@ -1,0 +1,12 @@
+---
+# Internal filesystem/command boundaries are absolute so delegated execution
+# cannot accidentally resolve guest-side tools. Tests override these paths with
+# isolated fixtures; they are not public role API.
+_ludus_configure_bridge_ip_command: /usr/sbin/ip
+_ludus_configure_bridge_ifquery_command: /usr/sbin/ifquery
+_ludus_configure_bridge_id_command: /usr/bin/id
+_ludus_configure_bridge_ifupdown2_config_path: >-
+  /etc/network/ifupdown2/ifupdown2.conf
+_ludus_configure_bridge_hook_dir: /etc/network/if-up.d
+_ludus_configure_bridge_hook_owner: root
+_ludus_configure_bridge_hook_group: root
