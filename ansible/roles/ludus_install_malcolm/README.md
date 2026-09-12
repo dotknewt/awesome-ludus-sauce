@@ -170,6 +170,21 @@ bounded Basic-auth request to the self-signed localhost endpoint
 `logstash_lumberjack`, and `logstash_pipelines` fields. TLS verification is
 disabled only for that localhost readiness probe.
 
+### End-of-role VM power check
+
+After service readiness, Ludus deployments perform a final power-state check
+delegated to `localhost` with root escalation on the Ludus/Proxmox host. The
+check uses `/usr/bin/pvesh` and the guest's `proxmox_vmid` inventory value to
+resolve its current Proxmox node. An already-running VM succeeds unchanged;
+a stopped VM is started and its running state is polled every five seconds
+for up to 24 retries. Lookup and startup errors remain failures.
+
+Standalone inventories without `proxmox_vmid`, and Ansible check-mode runs,
+skip this host-side check. It verifies VM power, not guest/application readiness
+after a new start. It runs at the end of this role, so it cannot prevent a
+shutdown later in the overall Ludus deployment or recover a guest that became
+unreachable before the role reached this task.
+
 ## Troubleshooting
 
 Missing backend-file and primary OpenSearch credential guards report the missing
