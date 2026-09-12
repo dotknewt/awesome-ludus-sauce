@@ -54,6 +54,7 @@ def test_role_orchestration_and_service_unit_contract() -> None:
         "configure.yml",
         "authentication.yml",
         "service.yml",
+        "vm_power.yml",
     ]
     unit = (ROLE_DIR / "templates" / "malcolm.service.j2").read_text(encoding="utf-8")
     for expected in (
