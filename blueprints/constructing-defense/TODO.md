@@ -1,8 +1,5 @@
 # Roles
 
-## ludus_install_sysmon
-optionally specify which config .xml to use from `files/`; default to `sysmonconfig.xml`
-
 ## role_gpo_deploy
 ansible/roles/role_gpo_deploy/tasks/main.yml is a single big script; "convert" script to ansible using 
 
