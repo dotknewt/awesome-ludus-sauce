@@ -3,7 +3,7 @@
 	url = https://github.com/badsectorlabs/ludus_adcs.git
 [submodule "ansible/roles/ludus_flarevm"]
 	path = ansible/roles/ludus_flarevm
-	url = https://github.com/badsectorlabs/ludus_flarevm.git
+	url = https://github.com/badsectorlabs/ludus_flarevm
 [submodule "ansible/collections/ludus_windows_utils"]
 	path = ansible/collections/ludus_windows_utils
 	url = https://github.com/badsectorlabs/ludus_windows_utils.git
