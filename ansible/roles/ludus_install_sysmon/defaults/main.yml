@@ -2,8 +2,10 @@
 sysmon_executable_path: 'C:\Windows\Sysmon64.exe'
 sysmon_config_dest: 'C:\Windows\sysmonconfig.xml'
 sysmon_drv_reg: "C:\\Windows\\Sysmon64.exe -i -accepteula"
+# Configuration filename in the role's files/ directory.
+sysmon_config_file: sysmonconfig.xml
 # Searches files/ first.
-sysmon_config_source: "{{ lookup('first_found', 'sysmonconfig.xml') }}"
+sysmon_config_source: "{{ lookup('first_found', sysmon_config_file) }}"
 sysmon_installer_url: https://download.sysinternals.com/files/Sysmon.zip
 sysmon_download_latest: false
 # These values describe files/sysmon.zip.

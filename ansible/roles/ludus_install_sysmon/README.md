@@ -7,13 +7,30 @@ An Ansible Role that installs, upgrades, and configures Sysmon on Windows Server
 sysmon_executable_path: 'C:\Windows\Sysmon64.exe'
 sysmon_config_dest: 'C:\Windows\sysmonconfig.xml'
 sysmon_drv_reg: '"C:\Windows\Sysmon64.exe" -i -accepteula'
-sysmon_config_source: "{{ lookup('first_found', 'sysmonconfig.xml') }}"
+sysmon_config_file: sysmonconfig.xml
+sysmon_config_source: "{{ lookup('first_found', sysmon_config_file) }}"
 sysmon_installer_url: https://download.sysinternals.com/files/Sysmon.zip
 sysmon_download_latest: false
 sysmon_installer_version: "15.22"
 sysmon_archive_sha256sum: "00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54"
 sysmon_eventlog_maxsize_gigabyte: 1
 ```
+
+### Configuration selection
+
+Set `sysmon_config_file` to the filename of a configuration in the role's `files/`
+directory. It defaults to `sysmonconfig.xml`. For example, to use the bundled
+`files/sysmonconfig_uc.xml`, set this in the VM's `role_vars`:
+
+```yaml
+role_vars:
+  sysmon_config_file: sysmonconfig_uc.xml
+```
+
+The role copies the selected configuration to `sysmon_config_dest` and reloads
+Sysmon when the configuration content changes. A missing configuration file causes
+the lookup to fail. You can still override `sysmon_config_source` directly to
+specify a source path.
 
 ### Archive selection
 
