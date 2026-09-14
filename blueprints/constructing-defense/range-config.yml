@@ -192,7 +192,7 @@ ludus:
       ludus_install_malcolm_capture_enabled: true
 
 router:
-  vm_name: "{{ range_id }}-router-debian13-x64"
+  vm_name: "{{ range_id }}-router"
   hostname: "{{ range_id }}-router"
   template: debian-13.5-x64-server-no-template
 
